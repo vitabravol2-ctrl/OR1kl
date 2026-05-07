@@ -1,63 +1,80 @@
-# BTCUSDT Research Market Intelligence Terminal v0.1.5
+# BTCUSDT Research Market Intelligence Terminal v0.1.6
 
 Professional realtime BTCUSDT tactical intelligence cockpit for microstructure research (NOT a trading bot).
 
-## v0.1.5 Tactical Market Radar
-- New **TacticalSignalEngine** combining:
-  - OrderBookEngine
-  - TimeflowEngine
-  - TickFlowEngine
-  - MarketRegimeEngine
-  - MarketMemoryEngine
-  - ProbabilityEngine context
-- Tactical state model with:
-  - PRESSURE_BUILDUP
-  - LIQUIDITY_TRAP
-  - SWEEP_RISK
-  - MOMENTUM_SURGE
-  - ABSORPTION
-  - DEAD_FLOW
-  - CHAOTIC_FLOW
-  - TREND_CONTINUATION
-  - REVERSAL_RISK
-  - NEUTRAL_FLOW
-- Signal priority weighting: `LOW`, `MID`, `HIGH`, `CRITICAL`.
+## v0.1.6 Liquidity Warfare + Reaction Intelligence
+- Added **LiquidityWarfareEngine**:
+  - wall appearance/disappearance tracking
+  - fake liquidity / spoof-candidate risk
+  - sweep pressure and liquidity consumption
+  - exhaustion and instability scoring
+- Added **AbsorptionEngine**:
+  - aggressive buy/sell absorption detection
+  - trapped continuation and failed push logic
+  - stalled momentum classification
+- Added **ReactionEngine**:
+  - response delay and reaction speed modeling
+  - follow-through / failed follow-through analysis
+  - continuation probability and rejection strength
+  - reaction states:
+    - FAST_ACCEPTANCE
+    - WEAK_RESPONSE
+    - FAILED_BREAK
+    - AGGRESSIVE_ACCEPTANCE
+    - STALLED_MOVE
+    - REJECTION
+    - PANIC_FLOW
+    - EXHAUSTED_FLOW
 
-## Smart Tactical Visualization
-- New cockpit center: **TACTICAL RADAR**.
-- Added panels:
-  - TACTICAL STATE
-  - FLOW RHYTHM
-  - MEMORY HEAT
-  - SIGNAL PRIORITY
-  - MARKET STRESS
-- Lightweight radar-style widgets:
-  - danger/opportunity gauges
-  - tactical stress bars
-  - directional tactical labels
-  - dynamic priority coloring
+## Tactical Persistence + Stability Controls
+- Added hysteresis and minimum state duration in tactical + warfare logic.
+- Added confidence smoothing to reduce state flip noise.
+- Added cooldown-aware event emission in upgraded behavior analysis.
 
-## Event + Log Stream Upgrades
-- Event deduplication and cooldown in `MicroEventDetector`.
-- Severity-first tactical grouping for signal output.
-- Log stream de-duplication and grouped duplicate collapse.
+## Event System Upgrade
+New behavior-analysis events:
+- spoof candidate
+- wall collapse
+- liquidity consumed
+- absorption detected
+- failed breakout
+- failed continuation
+- panic flow
+- pressure inversion
 
-## Depth + Memory + Timeflow Upgrades
-- Timeflow now computes acceleration spikes, flow exhaustion/compression, pulse rhythm, and burst transitions.
-- Market memory now tracks repeated sweep zones, persistent pressure zones, historical imbalance clusters, momentum memory, and rejection traces.
+Severity ladder remains: `LOW` / `MID` / `HIGH` / `CRITICAL`.
+
+## Cockpit Upgrade (Radar Combat Center)
+Added/extended cockpit intelligence outputs:
+- dominant tactical side
+- fake pressure warning
+- sweep / exhaustion risk
+- continuation strength
+- reaction strength/state
+- absorption status
+
+New/expanded panels:
+- TACTICAL RADAR (upgraded)
+- LIQUIDITY WARFARE
+- ABSORPTION
+- SIGNAL PRIORITY
+- MARKET STRESS
+- FLOW RHYTHM
+- MEMORY HEAT
 
 ## Performance Constraints
-- Bounded rendering with small-history sparkline widgets.
-- Minimal allocations via deques and capped UI log/event buffers.
-- Non-blocking queue pump and lightweight Qt painting.
+- Bounded memory via deque histories.
+- Minimal redraw strategy with compact sparkline buffers.
+- Async-safe queue handoff and non-blocking UI pump.
+- Stable lightweight tactical repaint behavior.
 
 ## Core Architecture
-- `btcusdt_sim/core/tactical_signal_engine.py`: tactical state synthesis engine
-- `btcusdt_sim/core/order_book_engine.py`: depth map intelligence
-- `btcusdt_sim/core/timeflow_engine.py`: flow rhythm intelligence
-- `btcusdt_sim/core/market_memory_engine.py`: memory heat intelligence
-- `btcusdt_sim/core/micro_event_detector.py`: deduped tactical events
-- `btcusdt_sim/gui/main_window.py`: tactical radar cockpit UI
+- `btcusdt_sim/core/liquidity_warfare_engine.py`: liquidity warfare + spoof behavior analysis
+- `btcusdt_sim/core/absorption_engine.py`: absorption and failed push classification
+- `btcusdt_sim/core/reaction_engine.py`: reaction delay/speed/follow-through modeling
+- `btcusdt_sim/core/tactical_signal_engine.py`: tactical synthesis + persistence/hysteresis
+- `btcusdt_sim/core/micro_event_detector.py`: upgraded event logic + cooldown
+- `btcusdt_sim/gui/main_window.py`: tactical radar cockpit UI v0.1.6
 
 ## Linux/macOS
 ```bash
