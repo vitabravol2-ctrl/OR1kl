@@ -1,35 +1,50 @@
-# BTCUSDT Research Market Intelligence Terminal v0.1.2
+# BTCUSDT Research Market Intelligence Terminal v0.1.3
 
-Professional realtime cockpit for BTCUSDT microstructure research (NOT a trading bot).
+Professional realtime BTCUSDT intelligence cockpit for microstructure research (NOT a trading bot).
 
-## Focus
-- Realtime market state understanding
-- Market regime classification
-- Micro-event detection
-- Replay pipeline foundation
-- Self-learning-ready architecture
+## v0.1.3 Cockpit Upgrade
+- Live BTC price panel with realtime pulse coloring.
+- Spread + activity panel with gauge and scrolling spread graph.
+- Tick flow panel with ticks/sec and tick acceleration.
+- Buy/Sell pressure bars + order flow delta.
+- Volatility state panel: LOW / MID / HIGH / EXTREME.
+- Market regime + severity + stability indicators.
+- Probability gauge for P(up), P(down), confidence, directional bias.
+- Event stream panel with severity tiers (LOW/HIGH/CRITICAL).
+- System health cockpit with latency, reconnects, stale, queue pressure, replay queue, dropped frames/ticks, memory proxy, CPU usage.
 
-## Architecture
-- `btcusdt_sim/core/market_state_engine.py`: computes spread, micro trend, volatility, aggression, tick velocity
-- `btcusdt_sim/core/market_regime_engine.py`: classifies CALM / TRENDING_UP / TRENDING_DOWN / HIGH_VOLATILITY / COMPRESSION / EXPANSION / LIQUIDITY_SWEEP / CHAOTIC
-- `btcusdt_sim/core/micro_event_detector.py`: detects spread explosion, aggression spike, imbalance shift, volatility burst, liquidity sweep candidate, momentum ignition, dead market
-- `btcusdt_sim/core/probability_engine.py`: weighted scoring, normalization, confidence, directional bias
-- `btcusdt_sim/infra/replay.py`: async-only replay storage (`jsonl.gz`) + replay reader skeleton
-- `btcusdt_sim/gui/main_window.py`: cockpit panels for regime/events/bias/confidence/health/replay
+## Flow Intelligence Engine
+`btcusdt_sim/core/tick_flow_engine.py` computes lightweight realtime flow metrics:
+- buy wave
+- sell wave
+- pressure shift
+- tick acceleration
+- momentum pulse
+- buyer/seller dominance
 
-## Replay foundation
-- Snapshot format: compressed `jsonl.gz`
-- Type: `ReplayFrame`
-- Writer: bounded queue + background thread
-- Reader: skeleton iterator for future replay engine
+These metrics are rendered directly in GUI graphs and pressure bars.
 
-## Cockpit GUI panels
-- MARKET REGIME PANEL
-- EVENT ALERT PANEL
-- DIRECTIONAL BIAS PANEL
-- CONFIDENCE SCALE
-- SYSTEM HEALTH PANEL
-- REPLAY STATUS PANEL
+## Visualization System (Lightweight Qt Drawing)
+The GUI uses custom Qt paint widgets (`SparklineWidget`) instead of heavy plotting libraries:
+- Scrolling micro price graph
+- Spread activity line
+- Aggression histogram-style line
+- Tick velocity graph
+
+Rendering strategy:
+- throttled UI pump via QTimer
+- update only newest payload
+- bounded repaint cycle
+- no full-screen redraws
+
+## Core Architecture
+- `btcusdt_sim/core/market_state_engine.py`: spread, micro trend, volatility, aggression, tick velocity
+- `btcusdt_sim/core/market_regime_engine.py`: market regime classification
+- `btcusdt_sim/core/micro_event_detector.py`: micro-event detection
+- `btcusdt_sim/core/probability_engine.py`: directional probability and confidence
+- `btcusdt_sim/core/tick_flow_engine.py`: realtime flow intelligence
+- `btcusdt_sim/infra/replay.py`: async replay storage (`jsonl.gz`)
+- `btcusdt_sim/gui/main_window.py`: professional multi-panel cockpit UI
 
 ## Launch (Windows 10)
 - Double click `run.bat`
