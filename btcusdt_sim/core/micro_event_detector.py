@@ -9,9 +9,12 @@ class MicroEventDetector:
         self._last_emit: dict[str, int] = {}
         self._cooldown_ms = cooldown_ms
 
-    def detect(self, state: MarketState, ts: int, flow: dict | None = None, order_book: dict | None = None) -> list[MicroEvent]:
+    def detect(self, state: MarketState, ts: int, flow: dict | None = None, order_book: dict | None = None, warfare: dict | None = None, absorption: dict | None = None, reaction: dict | None = None) -> list[MicroEvent]:
         flow = flow or {}
         ob = order_book or {}
+        warfare = warfare or {}
+        absorption = absorption or {}
+        reaction = reaction or {}
         candidates: list[tuple[str, float]] = []
 
         imbalance = abs(ob.get("liquidity_imbalance", 0.0))
@@ -29,6 +32,23 @@ class MicroEventDetector:
             candidates.append(("momentum continuation", 0.74))
         if state.micro_trend < -10 and ob.get("pressure_dominance") == "BID":
             candidates.append(("trapped side candidate", 0.7))
+
+        if warfare.get("fake_liquidity_risk", 0.0) > 0.62:
+            candidates.append(("spoof candidate", 0.76))
+        if warfare.get("wall_disappeared", 0) >= 2:
+            candidates.append(("wall collapse", 0.72))
+        if warfare.get("liquidity_consumption", 0.0) > 0.5:
+            candidates.append(("liquidity consumed", 0.7))
+        if absorption.get("absorption_strength", 0.0) > 0.28:
+            candidates.append(("absorption detected", 0.73))
+        if absorption.get("failed_push", False):
+            candidates.append(("failed breakout", 0.74))
+        if reaction.get("failed_follow_through", False):
+            candidates.append(("failed continuation", 0.75))
+        if reaction.get("state") == "PANIC_FLOW":
+            candidates.append(("panic flow", 0.86))
+        if ob.get("pressure_dominance") != "NEUTRAL" and abs(ob.get("liquidity_imbalance", 0.0)) < 0.05:
+            candidates.append(("pressure inversion", 0.67))
 
         grouped: dict[str, float] = {}
         for name, sev in candidates:

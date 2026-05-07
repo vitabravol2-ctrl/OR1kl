@@ -15,10 +15,14 @@ class TacticalSignalEngine:
         "NEUTRAL_FLOW",
     ]
 
-    def __init__(self, history: int = 220) -> None:
+    def __init__(self, history: int = 220, min_state_duration: int = 4) -> None:
         self._state_hist: deque[str] = deque(maxlen=history)
         self._danger_hist: deque[float] = deque(maxlen=history)
         self._opp_hist: deque[float] = deque(maxlen=history)
+        self._live_state = "NEUTRAL_FLOW"
+        self._state_age = 0
+        self._min_state_duration = min_state_duration
+        self._danger_smooth = 0.0
 
     def evaluate(self, state: dict) -> dict:
         flow = state.get("flow", {})
@@ -27,6 +31,9 @@ class TacticalSignalEngine:
         market_state = state.get("market_state", {})
         regime = state.get("regime", "CALM")
         events = state.get("events", [])
+        warfare = state.get("warfare", {})
+        absorption = state.get("absorption", {})
+        reaction = state.get("reaction", {})
 
         imbalance = float(depth.get("liquidity_imbalance", 0.0))
         accel = float(flow.get("flow_acceleration", 0.0))
@@ -60,30 +67,46 @@ class TacticalSignalEngine:
         danger = min(1.0, 0.36 * abs(imbalance) + 0.28 * max(0.0, -accel) + 0.2 * min(event_density / 8.0, 1.0) + 0.16 * min(volatility / 20.0, 1.0))
         opportunity = min(1.0, 0.36 * max(0.0, accel / 3.0) + 0.24 * min(pulse / 5.0, 1.0) + 0.22 * continuity + 0.18 * abs(imbalance))
 
-        self._state_hist.append(tactical_state)
-        self._danger_hist.append(danger)
+        self._state_age += 1
+        if tactical_state != self._live_state and self._state_age >= self._min_state_duration:
+            self._live_state = tactical_state
+            self._state_age = 0
+        self._danger_smooth = self._danger_smooth * 0.72 + danger * 0.28
+
+        self._state_hist.append(self._live_state)
+        self._danger_hist.append(self._danger_smooth)
         self._opp_hist.append(opportunity)
 
         dominant_side = "BUY" if imbalance > 0.08 else "SELL" if imbalance < -0.08 else "NEUTRAL"
         pressure_direction = "UP" if accel > 0.35 else "DOWN" if accel < -0.35 else "FLAT"
         stress = min(1.0, abs(imbalance) * 1.6 + volatility / 24.0)
 
-        severity = max(danger, abs(imbalance), min(event_density / 8.0, 1.0))
+        fake_warning = warfare.get("fake_liquidity_risk", 0.0)
+        reaction_strength = reaction.get("reaction_speed", 0.0)
+        continuation_strength = reaction.get("continuation_probability", continuity)
+        absorption_status = absorption.get("status", "INACTIVE")
+        severity = max(self._danger_smooth, abs(imbalance), min(event_density / 8.0, 1.0), fake_warning * 0.9)
         priority = "LOW" if severity < 0.32 else "MID" if severity < 0.56 else "HIGH" if severity < 0.78 else "CRITICAL"
 
         counts = Counter(e.get("severity_level", "LOW") for e in events)
 
         return {
-            "state": tactical_state,
+            "state": self._live_state,
             "priority": priority,
             "dominant_side": dominant_side,
             "pressure_direction": pressure_direction,
             "liquidity_stress": stress,
             "momentum_state": "SURGE" if pulse > 3.2 else "EXHAUSTION" if accel < -1.1 else "STABLE",
-            "tactical_danger": danger,
+            "tactical_danger": self._danger_smooth,
             "tactical_opportunity": opportunity,
             "signal_density": event_density,
             "severity_counts": dict(counts),
+            "fake_pressure_warning": fake_warning,
+            "sweep_risk": warfare.get("sweep_risk", 0.0),
+            "exhaustion_risk": warfare.get("exhaustion_risk", 0.0),
+            "continuation_strength": continuation_strength,
+            "reaction_strength": reaction_strength,
+            "absorption_status": absorption_status,
             "state_history": list(self._state_hist),
             "danger_series": list(self._danger_hist),
             "opportunity_series": list(self._opp_hist),
