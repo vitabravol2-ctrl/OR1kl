@@ -1,54 +1,38 @@
-# BTCUSDT Research Market Intelligence Terminal v0.2.1
+# BTCUSDT Research Market Intelligence Terminal v0.2.2
 
 Professional realtime BTCUSDT tactical intelligence cockpit for microstructure research (NOT a trading bot).
 
+## v0.2.2 Simplified GUI + Command Center Layout
+- Introduced a **3-tab cockpit layout**:
+  1. **COMMAND CENTER**
+  2. **GAME THEORY**
+  3. **DIAGNOSTICS**
+- Main screen is now a decision-focused **Command Center** with larger typography and reduced panel noise.
+- Added a central **MARKET DECISION CARD** showing:
+  - Tactical state
+  - Market intent
+  - Best scenario
+  - Pressure direction
+  - Trap side
+  - Confidence
+  - Danger / Opportunity
+- Added **MarketSummaryEngine** with one-line tactical narrative:
+  - Example: "Market neutral flow, fake breakout intent, shorts vulnerable, compression wait scenario active, pressure up."
+- Priority feed on Command Center now shows only **CRITICAL/HIGH** events.
+- Engineering-heavy details (diagnostics/log stream) moved away from main decision screen.
+
 ## v0.2.1 Adaptive Game Theory + Market Intent
-- Added **MarketIntentEngine** with intent classification:
-  - `BAIT_LONGS`, `BAIT_SHORTS`, `SWEEP_FOR_LIQUIDITY`
-  - `ACCEPT_HIGHER`, `ACCEPT_LOWER`, `FAKE_BREAKOUT`
-  - `RANGE_MANIPULATION`, `MOMENTUM_HUNT`, `EXHAUSTION_ROTATION`, `PANIC_EXTRACTION`
-- Added **ScenarioEvolutionEngine**:
-  - tracks scenario strengthening/collapse
-  - transition flow output for cockpit scenario flow panel
-  - failed scenario detection + persistence view
-- Added **IntentRealityEngine**:
-  - compares market intent vs actual reaction outcome
-  - marks inversion behavior and weakness diagnostics
-- Added **TrapAnalyzer**:
-  - long/short trap probabilities
-  - fake continuation + failed momentum severity
-  - likely pain direction and trapped crowd severity
-- Added **PayoffEvolutionEngine**:
-  - payoff growth and collapse
-  - scenario reinforcement/decay
-  - smoothed payoff momentum for flow panel
-- Added tactical stability controls in this layer:
+- Added **MarketIntentEngine** with intent classification.
+- Added **ScenarioEvolutionEngine**, **IntentRealityEngine**, **TrapAnalyzer**, **PayoffEvolutionEngine**.
+- Added tactical stability controls:
   - intent persistence
   - confidence smoothing
-  - scenario hysteresis-like transition gating
   - tactical instability score
 
-## New Panels (v0.2.1)
-- MARKET INTENT RADAR
-- SCENARIO FLOW
-- TRAP ANALYZER
-- PAYOFF FLOW
-- INTENT vs REALITY
-
-## Existing Foundation (v0.2.0 and earlier)
-- GameTheoryCore (player model, crowd pain, payoff matrix, decision engine)
-- Tactical radar + liquidity warfare + absorption + reaction stack
-- Event priority stream and lightweight sparkline-based cockpit rendering
-
-## Performance Constraints
-- Bounded memory via deque histories.
-- Minimal redraw strategy with compact sparkline buffers.
-- Async-safe queue handoff and non-blocking UI pump.
-- Stable lightweight tactical repaint behavior.
-
 ## Core Architecture
-- `btcusdt_sim/core/game_theory_engine.py`: adaptive game theory, intent, scenario evolution, trap and payoff flow logic
-- `btcusdt_sim/gui/main_window.py`: cockpit UI v0.2.1, radar and flow panels
+- `btcusdt_sim/core/game_theory_engine.py`: adaptive game theory, intent, trap and payoff flow logic
+- `btcusdt_sim/core/market_summary_engine.py`: concise market summary string for decision UI
+- `btcusdt_sim/gui/main_window.py`: tabbed cockpit UI and command-center-focused layout
 - `main.py`: orchestration and pipeline integration
 
 ## Linux/macOS
@@ -61,6 +45,6 @@ python main.py
 
 ## Windows Quick Start
 1. `git pull`
-2. Run `.\run.ps1`
+2. Run `./run.ps1`
 3. If PowerShell blocks script execution:
    - `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
