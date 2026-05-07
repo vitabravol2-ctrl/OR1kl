@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from btcusdt_sim.core.market_regime_engine import MarketRegimeEngine
 from btcusdt_sim.core.market_memory_engine import MarketMemoryEngine
+from btcusdt_sim.core.tactical_signal_engine import TacticalSignalEngine
 from btcusdt_sim.core.order_book_engine import OrderBookEngine
 from btcusdt_sim.core.timeflow_engine import TimeflowEngine
 from btcusdt_sim.core.market_state_engine import MarketStateEngine
@@ -43,6 +44,8 @@ class AppOrchestrator:
         self.order_book_engine = OrderBookEngine()
         self.timeflow_engine = TimeflowEngine()
         self.market_memory_engine = MarketMemoryEngine()
+        self.tactical_engine = TacticalSignalEngine()
+        self._last_log = ""
         self._cpu_time_last = process_time()
         self._wall_time_last = perf_counter()
         self.ws_client = BinanceWsClient(CONFIG)
@@ -68,8 +71,9 @@ class AppOrchestrator:
         depth = self.order_book_engine.update(tick.bids or [], tick.asks or [])
         timeflow = self.timeflow_engine.update(tick.timestamp, flow.get("momentum_pulse", 0.0))
         flow.update(timeflow)
-        memory = self.market_memory_engine.update(tick.mid_price, depth.get("liquidity_imbalance", 0.0), m["avg_spread"], m["short_volatility"])
+        memory = self.market_memory_engine.update(tick.mid_price, depth.get("liquidity_imbalance", 0.0), m["avg_spread"], m["short_volatility"], flow.get("momentum_pulse", 0.0))
         events = self.event_detector.detect(state, tick.timestamp, flow, depth)
+        tactical = self.tactical_engine.evaluate({"flow": flow, "depth": depth, "memory": memory, "market_state": asdict(state), "regime": regime.value, "events": [{"severity_level": e.severity_level} for e in events]})
 
         self.replay.submit(
             ReplayFrame(
@@ -113,13 +117,21 @@ class AppOrchestrator:
             "flow": flow,
             "depth": depth,
             "memory": memory,
+            "tactical": tactical,
             "cpu_usage": cpu_usage,
-            "log": f"[STATE] regime={regime.value} [EVENT] {events[-1].name if events else 'none'} [SIM] {sim_status} dt={(perf_counter()-started)*1000:.2f}ms",
+            "log": self._build_log(regime.value, events[-1].name if events else "none", sim_status, perf_counter()-started),
         }
         try:
             self.ui_queue.put_nowait(payload)
         except Full:
             self._dropped_ui += 1
+
+    def _build_log(self, regime: str, event_name: str, sim_status: str, dt: float) -> str:
+        line = f"[TACTICAL] {regime} | event={event_name} | sim={sim_status} | dt={dt*1000:.2f}ms"
+        if line == self._last_log:
+            return "[TACTICAL] grouped duplicate signal"
+        self._last_log = line
+        return line
 
     def shutdown(self) -> None:
         self.replay.stop()
