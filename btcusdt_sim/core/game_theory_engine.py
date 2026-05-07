@@ -1,3 +1,4 @@
+from collections import deque
 from dataclasses import dataclass
 from math import exp
 
@@ -20,6 +21,19 @@ SCENARIOS = [
     "SWEEP_HIGH",
     "SWEEP_LOW",
     "RANGE_TRAP",
+]
+
+INTENTS = [
+    "BAIT_LONGS",
+    "BAIT_SHORTS",
+    "SWEEP_FOR_LIQUIDITY",
+    "ACCEPT_HIGHER",
+    "ACCEPT_LOWER",
+    "FAKE_BREAKOUT",
+    "RANGE_MANIPULATION",
+    "MOMENTUM_HUNT",
+    "EXHAUSTION_ROTATION",
+    "PANIC_EXTRACTION",
 ]
 
 
@@ -133,18 +147,146 @@ class GameDecisionEngine:
         return GameDecision(best_name, second_name, confidence, best_data["expected_payoff"], reason)
 
 
+class MarketIntentEngine:
+    def __init__(self) -> None:
+        self._intent = "RANGE_MANIPULATION"
+        self._confidence = 0.4
+        self._duration = 0
+
+    def evaluate(self, tactical: dict, flow: dict, depth: dict, reaction: dict, pain: dict) -> dict:
+        pressure = flow.get("pressure", 0.0)
+        momentum = flow.get("momentum_pulse", 0.0)
+        stress = tactical.get("liquidity_stress", 0.0)
+        rej = reaction.get("rejection_strength", 0.0)
+        imbalance = depth.get("liquidity_imbalance", 0.0)
+        trap_score = max(pain.get("trapped_longs", 0.0), pain.get("trapped_shorts", 0.0))
+
+        scores = {
+            "BAIT_LONGS": max(-momentum, 0.0) + max(-pressure, 0.0) + pain.get("trapped_longs", 0.0),
+            "BAIT_SHORTS": max(momentum, 0.0) + max(pressure, 0.0) + pain.get("trapped_shorts", 0.0),
+            "SWEEP_FOR_LIQUIDITY": stress + abs(imbalance) + max(pain.get("pain_above", 0.0), pain.get("pain_below", 0.0)),
+            "ACCEPT_HIGHER": max(momentum, 0.0) + max(pressure, 0.0) + reaction.get("continuation_probability", 0.0),
+            "ACCEPT_LOWER": max(-momentum, 0.0) + max(-pressure, 0.0) + reaction.get("continuation_probability", 0.0),
+            "FAKE_BREAKOUT": tactical.get("fake_pressure_warning", 0.0) + rej,
+            "RANGE_MANIPULATION": (1.0 - abs(momentum)) + tactical.get("tactical_danger", 0.0) * 0.4,
+            "MOMENTUM_HUNT": abs(momentum) + abs(pressure) + tactical.get("continuation_strength", 0.0),
+            "EXHAUSTION_ROTATION": tactical.get("tactical_danger", 0.0) + tactical.get("liquidity_stress", 0.0) + max(0.0, 0.7 - reaction.get("reaction_speed", 0.0)),
+            "PANIC_EXTRACTION": tactical.get("tactical_danger", 0.0) + stress + trap_score,
+        }
+
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        intent, score = ranked[0]
+        second = ranked[1][1]
+        raw_conf = max(min((score - second + score) / 3.0, 1.0), 0.0)
+        if intent == self._intent:
+            self._duration += 1
+        elif raw_conf > self._confidence + 0.08:
+            self._intent = intent
+            self._duration = 1
+        else:
+            intent = self._intent
+            self._duration += 1
+        self._confidence = self._confidence * 0.7 + raw_conf * 0.3
+        return {
+            "intent": intent,
+            "confidence": self._confidence,
+            "persistence": min(self._duration / 14.0, 1.0),
+            "tactical_pressure": min((abs(pressure) + stress + abs(momentum)) / 2.0, 1.0),
+            "supporting_signals": sorted(scores, key=scores.get, reverse=True)[:3],
+        }
+
+
+class ScenarioEvolutionEngine:
+    def __init__(self) -> None:
+        self.flow = deque(maxlen=36)
+
+    def update(self, scenario: str, confidence: float) -> dict:
+        prev = self.flow[-1]["scenario"] if self.flow else scenario
+        self.flow.append({"scenario": scenario, "confidence": confidence})
+        persistence = sum(1 for x in reversed(self.flow) if x["scenario"] == scenario) / max(len(self.flow), 1)
+        failed = prev != scenario and confidence < 0.5
+        return {
+            "strengthening": scenario,
+            "collapsing": prev if failed else "NONE",
+            "transition": f"{prev} -> {scenario}" if prev != scenario else f"{scenario} -> {scenario}",
+            "persistence": persistence,
+            "failed_scenario": prev if failed else "NONE",
+            "flow": [x["scenario"] for x in list(self.flow)[-8:]],
+        }
+
+
+class IntentRealityEngine:
+    def evaluate(self, intent: dict, tactical: dict, reaction: dict) -> dict:
+        tried = intent.get("intent", "RANGE_MANIPULATION")
+        if tried in {"ACCEPT_LOWER", "BAIT_LONGS"} and reaction.get("state") in {"REJECTION", "FAST_ACCEPTANCE"}:
+            reality = "FAST_REJECTION"
+            verdict = "bear weakness"
+        elif tried in {"ACCEPT_HIGHER", "BAIT_SHORTS"} and reaction.get("state") in {"FAILED_BREAK", "REJECTION"}:
+            reality = "FAILED_CONTINUATION"
+            verdict = "bull weakness"
+        else:
+            reality = reaction.get("state", "WEAK_RESPONSE")
+            verdict = "intent aligned"
+        inversion = 1.0 if verdict != "intent aligned" else 0.0
+        return {"intent": tried, "reality": reality, "verdict": verdict, "inversion_risk": inversion}
+
+
+class TrapAnalyzer:
+    def evaluate(self, pain: dict, tactical: dict, intent_reality: dict) -> dict:
+        long_trap = min(pain.get("trapped_longs", 0.0) + tactical.get("fake_pressure_warning", 0.0) * 0.4, 1.0)
+        short_trap = min(pain.get("trapped_shorts", 0.0) + tactical.get("fake_pressure_warning", 0.0) * 0.4, 1.0)
+        failed_momentum = min(tactical.get("tactical_danger", 0.0) + intent_reality.get("inversion_risk", 0.0) * 0.5, 1.0)
+        severity = min((long_trap + short_trap + failed_momentum) / 3.0, 1.0)
+        likely_pain = "LONGS" if long_trap > short_trap else "SHORTS"
+        return {
+            "long_trap_probability": long_trap,
+            "short_trap_probability": short_trap,
+            "fake_continuation": tactical.get("fake_pressure_warning", 0.0),
+            "failed_momentum": failed_momentum,
+            "trapped_crowd_severity": severity,
+            "likely_pain_direction": likely_pain,
+        }
+
+
+class PayoffEvolutionEngine:
+    def __init__(self) -> None:
+        self._last = 0.0
+
+    def update(self, payoff: float, scenario_persistence: float) -> dict:
+        delta = payoff - self._last
+        self._last = self._last * 0.65 + payoff * 0.35
+        return {
+            "payoff_growth": max(delta, 0.0),
+            "payoff_collapse": max(-delta, 0.0),
+            "scenario_decay": max(0.0, 1.0 - scenario_persistence),
+            "scenario_reinforcement": scenario_persistence,
+            "payoff_momentum": self._last,
+        }
+
+
 class GameTheoryCore:
     def __init__(self) -> None:
         self.pain_engine = CrowdPainEngine()
         self.player_engine = PlayerModelEngine()
         self.payoff_engine = PayoffMatrixEngine()
         self.decision_engine = GameDecisionEngine()
+        self.intent_engine = MarketIntentEngine()
+        self.scenario_engine = ScenarioEvolutionEngine()
+        self.intent_reality_engine = IntentRealityEngine()
+        self.trap_analyzer = TrapAnalyzer()
+        self.payoff_evolution = PayoffEvolutionEngine()
 
-    def evaluate(self, price: float, tactical: dict, flow: dict, depth: dict) -> dict:
+    def evaluate(self, price: float, tactical: dict, flow: dict, depth: dict, reaction: dict | None = None) -> dict:
+        reaction = reaction or {}
         pain = self.pain_engine.evaluate(price, depth, flow, tactical)
         players = self.player_engine.evaluate(flow, depth, tactical, pain)
         matrix = self.payoff_engine.evaluate(tactical, flow, depth, pain, players)
         decision = self.decision_engine.decide(matrix, pain, players)
+        intent = self.intent_engine.evaluate(tactical, flow, depth, reaction, pain)
+        scenario_flow = self.scenario_engine.update(decision.best_scenario, decision.confidence)
+        intent_reality = self.intent_reality_engine.evaluate(intent, tactical, reaction)
+        trap = self.trap_analyzer.evaluate(pain, tactical, intent_reality)
+        payoff_flow = self.payoff_evolution.update(decision.expected_payoff, scenario_flow["persistence"])
         return {
             "pain": pain,
             "players": players,
@@ -158,4 +300,10 @@ class GameTheoryCore:
             },
             "trapped_side": "LONGS" if pain["trapped_longs"] > pain["trapped_shorts"] else "SHORTS",
             "market_maker_incentive": players["MARKET_MAKER"]["payoff_expectation"],
+            "intent": intent,
+            "scenario_flow": scenario_flow,
+            "intent_vs_reality": intent_reality,
+            "trap": trap,
+            "payoff_flow": payoff_flow,
+            "tactical_instability": min((trap["trapped_crowd_severity"] + intent_reality["inversion_risk"] + tactical.get("tactical_danger", 0.0)) / 3.0, 1.0),
         }

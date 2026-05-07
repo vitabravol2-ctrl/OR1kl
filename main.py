@@ -89,7 +89,7 @@ class AppOrchestrator:
         reaction = self.reaction_engine.update(flow, depth, absorption)
         events = self.event_detector.detect(state, tick.timestamp, flow, depth, warfare, absorption, reaction)
         tactical = self.tactical_engine.evaluate({"flow": flow, "depth": depth, "memory": memory, "market_state": asdict(state), "regime": regime.value, "events": [{"severity_level": e.severity_level} for e in events], "warfare": warfare, "absorption": absorption, "reaction": reaction})
-        game = self.game_theory_core.evaluate(tick.mid_price, tactical, flow, depth)
+        game = self.game_theory_core.evaluate(tick.mid_price, tactical, flow, depth, reaction)
 
         self.replay.submit(
             ReplayFrame(
