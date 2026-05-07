@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import threading
+from dataclasses import asdict
 from queue import Empty, Full, Queue
 from time import perf_counter, process_time
 
@@ -47,7 +48,7 @@ class AppOrchestrator:
         await self.ws_client.run(self.on_tick, self.on_diag)
 
     def on_diag(self, diag: WsDiagnostics) -> None:
-        self.ws_diag = WsDiagnostics(**diag.__dict__)
+        self.ws_diag = WsDiagnostics(**asdict(diag))
 
     async def on_tick(self, tick) -> None:
         started = perf_counter()
@@ -64,7 +65,7 @@ class AppOrchestrator:
             ReplayFrame(
                 timestamp=tick.timestamp,
                 price=tick.mid_price,
-                market_state=state.__dict__,
+                market_state=asdict(state),
                 probabilities={"p_up": probs.p_up, "p_down": probs.p_down, "confidence": probs.confidence},
                 regime=regime.value,
             )
