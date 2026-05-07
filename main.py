@@ -2,7 +2,7 @@ import asyncio
 import logging
 import threading
 from queue import Empty, Full, Queue
-from time import perf_counter
+from time import perf_counter, process_time
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -13,6 +13,7 @@ from btcusdt_sim.core.micro_event_detector import MicroEventDetector
 from btcusdt_sim.core.pattern_memory import PatternMemory
 from btcusdt_sim.core.probability_engine import ProbabilityEngine
 from btcusdt_sim.core.simulation_engine import SimulationEngine
+from btcusdt_sim.core.tick_flow_engine import TickFlowEngine
 from btcusdt_sim.data.entities import ReplayFrame, WSHealthState, WsDiagnostics
 from btcusdt_sim.data.market_buffer import MarketBuffer
 from btcusdt_sim.gui.main_window import MainWindow
@@ -34,6 +35,9 @@ class AppOrchestrator:
         self.prob_engine = ProbabilityEngine()
         self.sim_engine = SimulationEngine(threshold=CONFIG.simulation_threshold)
         self.pattern_memory = PatternMemory()
+        self.flow_engine = TickFlowEngine()
+        self._cpu_time_last = process_time()
+        self._wall_time_last = perf_counter()
         self.ws_client = BinanceWsClient(CONFIG)
         self.ws_diag = WsDiagnostics(state=WSHealthState.CONNECTING)
         self.replay = ReplayStorage()
@@ -54,6 +58,7 @@ class AppOrchestrator:
         probs = self.prob_engine.calculate(state)
         sim_status, _ = self.sim_engine.evaluate(tick.mid_price, probs.p_up, probs.p_down)
         m = self.buffer.metrics()
+        flow = self.flow_engine.update(tick, m["ticks_per_sec"], state.aggression)
 
         self.replay.submit(
             ReplayFrame(
@@ -66,6 +71,14 @@ class AppOrchestrator:
         )
         replay_status = self.replay.status()
 
+        now_wall = perf_counter()
+        now_cpu = process_time()
+        wall_delta = max(now_wall - self._wall_time_last, 1e-6)
+        cpu_delta = max(now_cpu - self._cpu_time_last, 0.0)
+        cpu_usage = min(max((cpu_delta / wall_delta) * 100.0, 0.0), 100.0)
+        self._wall_time_last = now_wall
+        self._cpu_time_last = now_cpu
+
         payload = {
             "price": tick.mid_price,
             "spread": m["avg_spread"],
@@ -77,15 +90,17 @@ class AppOrchestrator:
             "confidence": probs.confidence,
             "bias": probs.directional_bias,
             "regime": regime.value,
-            "events": [f"{e.timestamp} | {e.name} | sev={e.severity:.2f}" for e in events][-4:],
+            "events": [{"timestamp": e.timestamp, "name": e.name, "severity": e.severity} for e in events][-18:],
             "sim_status": sim_status,
             "ws_state": self.ws_diag.state.value,
             "ticks_per_sec": m["ticks_per_sec"],
             "latency_ms": self.ws_diag.latency_ms,
             "buffer_fill": self.buffer.fill_ratio(),
-            "health": f"queue={self.ui_queue.qsize()} dropped={self._dropped_ui} replay_q={replay_status['queued']} replay_w={replay_status['written']}",
+            "health": f"queue={self.ui_queue.qsize()} dropped={self._dropped_ui} replay_q={replay_status['queued']} replay_w={replay_status['written']} mem_mb={self.buffer.fill_ratio()*CONFIG.buffer_size*0.00035:.1f}",
             "replay_status": f"queued={replay_status['queued']} written={replay_status['written']}",
             "diag": f"reconnects={self.ws_diag.reconnect_count} stale={self.ws_diag.stale_count} dropped_frames={self.buffer.dropped_ticks()}",
+            "flow": flow,
+            "cpu_usage": cpu_usage,
             "log": f"[STATE] regime={regime.value} [EVENT] {events[-1].name if events else 'none'} [SIM] {sim_status} dt={(perf_counter()-started)*1000:.2f}ms",
         }
         try:
