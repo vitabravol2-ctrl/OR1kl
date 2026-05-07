@@ -9,6 +9,9 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from btcusdt_sim.core.market_regime_engine import MarketRegimeEngine
+from btcusdt_sim.core.market_memory_engine import MarketMemoryEngine
+from btcusdt_sim.core.order_book_engine import OrderBookEngine
+from btcusdt_sim.core.timeflow_engine import TimeflowEngine
 from btcusdt_sim.core.market_state_engine import MarketStateEngine
 from btcusdt_sim.core.micro_event_detector import MicroEventDetector
 from btcusdt_sim.core.pattern_memory import PatternMemory
@@ -37,6 +40,9 @@ class AppOrchestrator:
         self.sim_engine = SimulationEngine(threshold=CONFIG.simulation_threshold)
         self.pattern_memory = PatternMemory()
         self.flow_engine = TickFlowEngine()
+        self.order_book_engine = OrderBookEngine()
+        self.timeflow_engine = TimeflowEngine()
+        self.market_memory_engine = MarketMemoryEngine()
         self._cpu_time_last = process_time()
         self._wall_time_last = perf_counter()
         self.ws_client = BinanceWsClient(CONFIG)
@@ -55,11 +61,15 @@ class AppOrchestrator:
         self.buffer.append(tick)
         state = self.state_engine.calculate(self.buffer)
         regime = self.regime_engine.classify(state)
-        events = self.event_detector.detect(state, tick.timestamp)
         probs = self.prob_engine.calculate(state)
         sim_status, _ = self.sim_engine.evaluate(tick.mid_price, probs.p_up, probs.p_down)
         m = self.buffer.metrics()
         flow = self.flow_engine.update(tick, m["ticks_per_sec"], state.aggression)
+        depth = self.order_book_engine.update(tick.bids or [], tick.asks or [])
+        timeflow = self.timeflow_engine.update(tick.timestamp, flow.get("momentum_pulse", 0.0))
+        flow.update(timeflow)
+        memory = self.market_memory_engine.update(tick.mid_price, depth.get("liquidity_imbalance", 0.0), m["avg_spread"], m["short_volatility"])
+        events = self.event_detector.detect(state, tick.timestamp, flow, depth)
 
         self.replay.submit(
             ReplayFrame(
@@ -91,7 +101,7 @@ class AppOrchestrator:
             "confidence": probs.confidence,
             "bias": probs.directional_bias,
             "regime": regime.value,
-            "events": [{"timestamp": e.timestamp, "name": e.name, "severity": e.severity} for e in events][-18:],
+            "events": [{"timestamp": e.timestamp, "name": e.name, "severity": e.severity, "severity_level": e.severity_level, "lifespan": e.lifespan} for e in events][-18:],
             "sim_status": sim_status,
             "ws_state": self.ws_diag.state.value,
             "ticks_per_sec": m["ticks_per_sec"],
@@ -101,6 +111,8 @@ class AppOrchestrator:
             "replay_status": f"queued={replay_status['queued']} written={replay_status['written']}",
             "diag": f"reconnects={self.ws_diag.reconnect_count} stale={self.ws_diag.stale_count} dropped_frames={self.buffer.dropped_ticks()}",
             "flow": flow,
+            "depth": depth,
+            "memory": memory,
             "cpu_usage": cpu_usage,
             "log": f"[STATE] regime={regime.value} [EVENT] {events[-1].name if events else 'none'} [SIM] {sim_status} dt={(perf_counter()-started)*1000:.2f}ms",
         }

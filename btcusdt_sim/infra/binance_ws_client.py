@@ -18,6 +18,8 @@ class BinanceWsClient:
         self._latest_bid = 0.0
         self._latest_ask = 0.0
         self._diag = WsDiagnostics()
+        self._latest_depth_bids: list[tuple[float, float]] = []
+        self._latest_depth_asks: list[tuple[float, float]] = []
 
     async def run(
         self,
@@ -72,6 +74,11 @@ class BinanceWsClient:
             self._latest_ask = float(data.get("a", 0.0))
             return None
 
+        if "@depth" in stream:
+            self._latest_depth_bids = [(float(p), float(q)) for p, q in data.get("b", [])[:10]]
+            self._latest_depth_asks = [(float(p), float(q)) for p, q in data.get("a", [])[:10]]
+            return None
+
         if stream.endswith("@aggTrade"):
             price = float(data.get("p", 0.0))
             quantity = float(data.get("q", 0.0))
@@ -80,5 +87,5 @@ class BinanceWsClient:
             ask = self._latest_ask or price
             spread = max(ask - bid, 0.0)
             mid = (bid + ask) / 2.0
-            return Tick(timestamp=ts, bid=bid, ask=ask, spread=spread, mid_price=mid, volume=quantity)
+            return Tick(timestamp=ts, bid=bid, ask=ask, spread=spread, mid_price=mid, volume=quantity, bids=self._latest_depth_bids, asks=self._latest_depth_asks)
         return None

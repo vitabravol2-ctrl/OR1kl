@@ -1,58 +1,51 @@
-# BTCUSDT Research Market Intelligence Terminal v0.1.3
+# BTCUSDT Research Market Intelligence Terminal v0.1.4
 
 Professional realtime BTCUSDT intelligence cockpit for microstructure research (NOT a trading bot).
 
-## v0.1.3 Cockpit Upgrade
-- Live BTC price panel with realtime pulse coloring.
-- Spread + activity panel with gauge and scrolling spread graph.
-- Tick flow panel with ticks/sec and tick acceleration.
-- Buy/Sell pressure bars + order flow delta.
-- Volatility state panel: LOW / MID / HIGH / EXTREME.
-- Market regime + severity + stability indicators.
-- Probability gauge for P(up), P(down), confidence, directional bias.
-- Event stream panel with severity tiers (LOW/HIGH/CRITICAL).
-- System health cockpit with latency, reconnects, stale, queue pressure, replay queue, dropped frames/ticks, memory proxy, CPU usage.
+## v0.1.4 Depth + Timeflow + Microstructure Intelligence
+- Order book awareness via Binance `depth10` stream integration.
+- New **OrderBookEngine** for bid/ask liquidity, imbalance, wall detection, pressure zones, and liquidity concentration.
+- New **TimeflowEngine** for tick-arrival speed, acceleration, burst/dead-zone transitions, and momentum continuity.
+- New **MarketMemoryEngine** for recent liquidity zones, sweep traces, repeated rejections, and pressure history.
+- Upgraded microstructure signal set:
+  - absorption
+  - fake breakout candidate
+  - liquidity grab candidate
+  - exhaustion
+  - pressure collapse
+  - momentum continuation
+  - trapped side candidate
+- Event stream now includes severity levels (`LOW`, `MID`, `HIGH`, `CRITICAL`) and lifespan states (`fading`, `active`).
 
-## Flow Intelligence Engine
-`btcusdt_sim/core/tick_flow_engine.py` computes lightweight realtime flow metrics:
-- buy wave
-- sell wave
-- pressure shift
-- tick acceleration
-- momentum pulse
-- buyer/seller dominance
+## New Cockpit Panels
+- DEPTH MAP
+- LIQUIDITY PRESSURE
+- TIMEFLOW
+- MARKET MEMORY
+- ACTIVE SIGNALS
+- LOG STREAM
 
-These metrics are rendered directly in GUI graphs and pressure bars.
-
-## Visualization System (Lightweight Qt Drawing)
-The GUI uses custom Qt paint widgets (`SparklineWidget`) instead of heavy plotting libraries:
-- Scrolling micro price graph
-- Spread activity line
-- Aggression histogram-style line
-- Tick velocity graph
-
-Rendering strategy:
-- throttled UI pump via QTimer
-- update only newest payload
-- bounded repaint cycle
-- no full-screen redraws
+## Lightweight Visualization (no heavy libs)
+- Scrolling order-flow style sparkline renderers.
+- Liquidity pulse graph.
+- Pressure balance graph.
+- Momentum/acceleration wave graph.
 
 ## Core Architecture
-- `btcusdt_sim/core/market_state_engine.py`: spread, micro trend, volatility, aggression, tick velocity
-- `btcusdt_sim/core/market_regime_engine.py`: market regime classification
-- `btcusdt_sim/core/micro_event_detector.py`: micro-event detection
-- `btcusdt_sim/core/probability_engine.py`: directional probability and confidence
-- `btcusdt_sim/core/tick_flow_engine.py`: realtime flow intelligence
-- `btcusdt_sim/infra/replay.py`: async replay storage (`jsonl.gz`)
-- `btcusdt_sim/gui/main_window.py`: professional multi-panel cockpit UI
+- `btcusdt_sim/core/order_book_engine.py`: depth map intelligence
+- `btcusdt_sim/core/timeflow_engine.py`: timeflow intelligence
+- `btcusdt_sim/core/market_memory_engine.py`: market memory
+- `btcusdt_sim/core/micro_event_detector.py`: signal intelligence (non-predictive)
+- `btcusdt_sim/core/tick_flow_engine.py`: realtime flow metrics
+- `btcusdt_sim/infra/binance_ws_client.py`: `bookTicker + aggTrade + depth10`
+- `btcusdt_sim/gui/main_window.py`: upgraded radar-style cockpit UI
 
-## Launch (Windows 10)
-- Double click `run.bat`
-- Or run `run.ps1` in PowerShell
-
-## Update + launch (Windows 10)
-- Double click `update_from_git.bat`
-- Or run `update_from_git.ps1`
+## Performance Constraints
+- Async-safe websocket processing.
+- Bounded UI queue + bounded in-memory history deques.
+- Lightweight Qt painting.
+- No blocking depth logic.
+- Safe replay cleanup on shutdown.
 
 ## Linux/macOS
 ```bash
