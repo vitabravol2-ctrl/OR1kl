@@ -24,6 +24,7 @@ from btcusdt_sim.core.micro_event_detector import MicroEventDetector
 from btcusdt_sim.core.pattern_memory import PatternMemory
 from btcusdt_sim.core.probability_engine import ProbabilityEngine
 from btcusdt_sim.core.simulation_engine import SimulationEngine
+from btcusdt_sim.core.game_theory_engine import GameTheoryCore
 from btcusdt_sim.core.tick_flow_engine import TickFlowEngine
 from btcusdt_sim.data.entities import ReplayFrame, WSHealthState, WsDiagnostics
 from btcusdt_sim.data.market_buffer import MarketBuffer
@@ -54,7 +55,9 @@ class AppOrchestrator:
         self.warfare_engine = LiquidityWarfareEngine()
         self.absorption_engine = AbsorptionEngine()
         self.reaction_engine = ReactionEngine()
+        self.game_theory_core = GameTheoryCore()
         self._last_log = ""
+        self._last_game_scenario = ""
         self._cpu_time_last = process_time()
         self._wall_time_last = perf_counter()
         self.ws_client = BinanceWsClient(CONFIG)
@@ -86,6 +89,7 @@ class AppOrchestrator:
         reaction = self.reaction_engine.update(flow, depth, absorption)
         events = self.event_detector.detect(state, tick.timestamp, flow, depth, warfare, absorption, reaction)
         tactical = self.tactical_engine.evaluate({"flow": flow, "depth": depth, "memory": memory, "market_state": asdict(state), "regime": regime.value, "events": [{"severity_level": e.severity_level} for e in events], "warfare": warfare, "absorption": absorption, "reaction": reaction})
+        game = self.game_theory_core.evaluate(tick.mid_price, tactical, flow, depth)
 
         self.replay.submit(
             ReplayFrame(
@@ -133,20 +137,32 @@ class AppOrchestrator:
             "absorption": absorption,
             "reaction": reaction,
             "tactical": tactical,
+            "game": game,
             "cpu_usage": cpu_usage,
-            "log": self._build_log(regime.value, events[-1].name if events else "none", sim_status, perf_counter()-started),
+            "log": self._build_log(regime.value, events[-1].name if events else "none", sim_status, perf_counter()-started, game),
         }
         try:
             self.ui_queue.put_nowait(payload)
         except Full:
             self._dropped_ui += 1
 
-    def _build_log(self, regime: str, event_name: str, sim_status: str, dt: float) -> str:
+    def _build_log(self, regime: str, event_name: str, sim_status: str, dt: float, game: dict) -> str:
         line = f"[TACTICAL] {regime} | event={event_name} | sim={sim_status} | dt={dt*1000:.2f}ms"
-        if line == self._last_log:
+        decision = game.get("decision", {})
+        conf = decision.get("confidence", 0.0)
+        scenario = decision.get("best_scenario", "COMPRESSION_WAIT")
+        game_line = ""
+        if conf >= 0.55 and scenario != self._last_game_scenario:
+            self._last_game_scenario = scenario
+            game_line = (
+                f"\n[GAME] scenario={scenario} payoff={decision.get('expected_payoff', 0.0):.2f} "
+                f"confidence={conf:.2f} trapped={game.get('trapped_side', 'N/A')}"
+            )
+        full = line + game_line
+        if full == self._last_log:
             return "[TACTICAL] grouped duplicate signal"
-        self._last_log = line
-        return line
+        self._last_log = full
+        return full
 
     def shutdown(self) -> None:
         self.replay.stop()

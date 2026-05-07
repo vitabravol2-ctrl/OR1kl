@@ -37,7 +37,7 @@ class SparklineWidget(QFrame):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Tactical Radar Cockpit v0.1.6")
+        self.setWindowTitle("BTCUSDT Tactical Radar Cockpit v0.2.0")
         self.setMinimumSize(1680, 980)
         self._log_lines: deque[str] = deque(maxlen=260)
         root = QWidget(); grid = QGridLayout(root)
@@ -54,6 +54,14 @@ class MainWindow(QMainWindow):
         self.reaction_state = self._mk_label("Reaction state: WEAK_RESPONSE")
         self.absorption_status = self._mk_label("Absorption: INACTIVE")
         self.cont_strength = self._mk_label("Continuation strength: 0.00")
+        self.game_state = self._mk_label("Best scenario: COMPRESSION_WAIT")
+        self.game_conf = self._mk_label("Confidence: 0.00")
+        self.trapped_side = self._mk_label("Trapped side: NONE")
+        self.mm_incentive = self._mk_label("Market maker incentive: 0.00")
+        self.pain_map = self._mk_label("Pain above/below: 0.00 / 0.00")
+        self.player_advantage = self._mk_label("Player advantage: NEUTRAL")
+        self.payoff_summary = self._mk_label("Payoff score: 0.00")
+        self.game_reason = self._mk_label("Reason: n/a")
 
         self.danger_bar = QProgressBar(); self.danger_bar.setRange(0, 100)
         self.opp_bar = QProgressBar(); self.opp_bar.setRange(0, 100)
@@ -77,13 +85,23 @@ class MainWindow(QMainWindow):
             self._panel("MEMORY HEAT", [self._mk_label("Persistent tactical memory"), self.memory_graph]),
             self._panel("LIQUIDITY WARFARE", [self._mk_label("Sweep / Exhaustion"), self.reaction_graph]),
             self._panel("ABSORPTION", [self._mk_label("Absorption strength"), self.absorption_graph]),
+            self._panel("GAME THEORY STATE", [self.game_state, self.game_conf, self.game_reason]),
+            self._panel("PLAYER ADVANTAGE", [self.player_advantage, self.mm_incentive]),
+            self._panel("CROWD PAIN MAP", [self.pain_map, self.trapped_side]),
+            self._panel("PAYOFF MATRIX", [self.payoff_summary]),
+            self._panel("BEST SCENARIO", [self._mk_label("Scenario is mirrored in GAME THEORY STATE panel.")]),
+            self._panel("MARKET MAKER INCENTIVE", [self._mk_label("Incentive is mirrored in PLAYER ADVANTAGE panel.")]),
+            self._panel("TRAPPED SIDE", [self._mk_label("Trapped side is mirrored in CROWD PAIN MAP panel.")]),
             self._panel("SIGNAL PRIORITY", [self.events]),
             self._panel("LOG STREAM", [self.log_window]),
         ]
         grid.addWidget(panels[0], 0, 0); grid.addWidget(panels[1], 0, 1); grid.addWidget(panels[2], 0, 2)
         grid.addWidget(panels[3], 1, 0); grid.addWidget(panels[4], 1, 1); grid.addWidget(panels[5], 1, 2)
         grid.addWidget(panels[6], 2, 0); grid.addWidget(panels[7], 2, 1); grid.addWidget(panels[8], 2, 2)
-        grid.addWidget(panels[8], 3, 0, 1, 3)
+        grid.addWidget(panels[9], 3, 0); grid.addWidget(panels[10], 3, 1); grid.addWidget(panels[11], 3, 2)
+        grid.addWidget(panels[12], 4, 0); grid.addWidget(panels[13], 4, 1); grid.addWidget(panels[14], 4, 2)
+        grid.addWidget(panels[15], 5, 0, 1, 3)
+        grid.addWidget(panels[16], 6, 0, 1, 3)
 
         self.setCentralWidget(root)
         self._apply_theme(QApplication.instance())
@@ -96,6 +114,10 @@ class MainWindow(QMainWindow):
         warfare = data.get("warfare", {})
         absorption = data.get("absorption", {})
         reaction = data.get("reaction", {})
+        game = data.get("game", {})
+        decision = game.get("decision", {})
+        pain = game.get("pain", {})
+        players = game.get("players", {})
 
         self.price.setText(f"{data['price']:.2f}")
         self.ws_status.setText(f"WS: {data['ws_state']}")
@@ -111,6 +133,16 @@ class MainWindow(QMainWindow):
         self.reaction_state.setText(f"Reaction state: {reaction.get('state', 'WEAK_RESPONSE')}")
         self.absorption_status.setText(f"Absorption: {tactical.get('absorption_status', 'INACTIVE')}")
         self.cont_strength.setText(f"Continuation strength: {tactical.get('continuation_strength', 0.0):.2f}")
+        self.game_state.setText(f"Best scenario: {decision.get('best_scenario', 'COMPRESSION_WAIT')}")
+        self.game_conf.setText(f"Confidence: {decision.get('confidence', 0.0):.2f}")
+        self.trapped_side.setText(f"Trapped side: {game.get('trapped_side', 'NONE')}")
+        self.mm_incentive.setText(f"Market maker incentive: {game.get('market_maker_incentive', 0.0):.2f}")
+        self.pain_map.setText(f"Pain above/below: {pain.get('pain_above', 0.0):.2f} / {pain.get('pain_below', 0.0):.2f}")
+        self.payoff_summary.setText(f"Payoff score: {decision.get('expected_payoff', 0.0):.2f}")
+        self.game_reason.setText(f"Reason: {decision.get('reason', 'n/a')}")
+        long_v = players.get("LONG_CROWD", {}).get("vulnerability", 0.0)
+        short_v = players.get("SHORT_CROWD", {}).get("vulnerability", 0.0)
+        self.player_advantage.setText(f"Player advantage: {'SHORT_SIDE' if long_v > short_v else 'LONG_SIDE'}")
 
         self.danger_bar.setValue(int(tactical.get("tactical_danger", 0.0) * 100))
         self.opp_bar.setValue(int(tactical.get("tactical_opportunity", 0.0) * 100))
