@@ -37,7 +37,7 @@ class SparklineWidget(QFrame):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Tactical Radar Cockpit v0.2.0")
+        self.setWindowTitle("BTCUSDT Tactical Radar Cockpit v0.2.1")
         self.setMinimumSize(1680, 980)
         self._log_lines: deque[str] = deque(maxlen=260)
         root = QWidget(); grid = QGridLayout(root)
@@ -62,6 +62,14 @@ class MainWindow(QMainWindow):
         self.player_advantage = self._mk_label("Player advantage: NEUTRAL")
         self.payoff_summary = self._mk_label("Payoff score: 0.00")
         self.game_reason = self._mk_label("Reason: n/a")
+        self.intent_state = self._mk_label("Intent: RANGE_MANIPULATION")
+        self.intent_conf = self._mk_label("Intent confidence: 0.00")
+        self.trap_prob = self._mk_label("Trap probability L/S: 0.00 / 0.00")
+        self.pain_side = self._mk_label("Likely pain side: NONE")
+        self.scenario_flow_label = self._mk_label("Scenario flow: COMPRESSION_WAIT -> COMPRESSION_WAIT")
+        self.payoff_momentum = self._mk_label("Payoff momentum: 0.00")
+        self.intent_reality = self._mk_label("Intent vs reality: n/a")
+        self.tactical_instability = self._mk_label("Tactical instability: 0.00")
 
         self.danger_bar = QProgressBar(); self.danger_bar.setRange(0, 100)
         self.opp_bar = QProgressBar(); self.opp_bar.setRange(0, 100)
@@ -89,6 +97,11 @@ class MainWindow(QMainWindow):
             self._panel("PLAYER ADVANTAGE", [self.player_advantage, self.mm_incentive]),
             self._panel("CROWD PAIN MAP", [self.pain_map, self.trapped_side]),
             self._panel("PAYOFF MATRIX", [self.payoff_summary]),
+            self._panel("MARKET INTENT RADAR", [self.intent_state, self.intent_conf, self.trap_prob, self.pain_side, self.tactical_instability]),
+            self._panel("SCENARIO FLOW", [self.scenario_flow_label]),
+            self._panel("TRAP ANALYZER", [self.trap_prob, self.pain_side]),
+            self._panel("PAYOFF FLOW", [self.payoff_momentum]),
+            self._panel("INTENT vs REALITY", [self.intent_reality]),
             self._panel("BEST SCENARIO", [self._mk_label("Scenario is mirrored in GAME THEORY STATE panel.")]),
             self._panel("MARKET MAKER INCENTIVE", [self._mk_label("Incentive is mirrored in PLAYER ADVANTAGE panel.")]),
             self._panel("TRAPPED SIDE", [self._mk_label("Trapped side is mirrored in CROWD PAIN MAP panel.")]),
@@ -101,6 +114,8 @@ class MainWindow(QMainWindow):
         grid.addWidget(panels[9], 3, 0); grid.addWidget(panels[10], 3, 1); grid.addWidget(panels[11], 3, 2)
         grid.addWidget(panels[12], 4, 0); grid.addWidget(panels[13], 4, 1); grid.addWidget(panels[14], 4, 2)
         grid.addWidget(panels[15], 5, 0, 1, 3)
+        grid.addWidget(panels[16], 6, 0); grid.addWidget(panels[17], 6, 1); grid.addWidget(panels[18], 6, 2)
+        grid.addWidget(panels[19], 7, 0); grid.addWidget(panels[20], 7, 1)
 
         self.setCentralWidget(root)
         self._apply_theme(QApplication.instance())
@@ -117,6 +132,11 @@ class MainWindow(QMainWindow):
         decision = game.get("decision", {})
         pain = game.get("pain", {})
         players = game.get("players", {})
+        intent = game.get("intent", {})
+        trap = game.get("trap", {})
+        scenario_flow = game.get("scenario_flow", {})
+        payoff_flow = game.get("payoff_flow", {})
+        intent_reality = game.get("intent_vs_reality", {})
 
         self.price.setText(f"{data['price']:.2f}")
         self.ws_status.setText(f"WS: {data['ws_state']}")
@@ -139,6 +159,14 @@ class MainWindow(QMainWindow):
         self.pain_map.setText(f"Pain above/below: {pain.get('pain_above', 0.0):.2f} / {pain.get('pain_below', 0.0):.2f}")
         self.payoff_summary.setText(f"Payoff score: {decision.get('expected_payoff', 0.0):.2f}")
         self.game_reason.setText(f"Reason: {decision.get('reason', 'n/a')}")
+        self.intent_state.setText(f"Intent: {intent.get('intent', 'RANGE_MANIPULATION')}")
+        self.intent_conf.setText(f"Intent confidence: {intent.get('confidence', 0.0):.2f}")
+        self.trap_prob.setText(f"Trap probability L/S: {trap.get('long_trap_probability', 0.0):.2f} / {trap.get('short_trap_probability', 0.0):.2f}")
+        self.pain_side.setText(f"Likely pain side: {trap.get('likely_pain_direction', 'NONE')}")
+        self.scenario_flow_label.setText(f"Scenario flow: {scenario_flow.get('transition', 'COMPRESSION_WAIT -> COMPRESSION_WAIT')}")
+        self.payoff_momentum.setText(f"Payoff momentum: {payoff_flow.get('payoff_momentum', 0.0):.2f}")
+        self.intent_reality.setText(f"Intent vs reality: {intent_reality.get('intent', 'N/A')} -> {intent_reality.get('reality', 'N/A')} ({intent_reality.get('verdict', 'n/a')})")
+        self.tactical_instability.setText(f"Tactical instability: {game.get('tactical_instability', 0.0):.2f}")
         long_v = players.get("LONG_CROWD", {}).get("vulnerability", 0.0)
         short_v = players.get("SHORT_CROWD", {}).get("vulnerability", 0.0)
         self.player_advantage.setText(f"Player advantage: {'SHORT_SIDE' if long_v > short_v else 'LONG_SIDE'}")
