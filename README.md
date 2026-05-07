@@ -83,3 +83,23 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
+
+## Windows Quick Start
+1. `git pull`
+2. Run `.\run.ps1`
+3. If PowerShell blocks script execution:
+   - `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+
+## Troubleshooting
+- **SyntaxError in `main.py`**
+  - Run: `python -m py_compile main.py`
+  - Ensure your local file is not corrupted and has normal line breaks.
+- **requirements install failed**
+  - Run: `python -m pip install --upgrade pip`
+  - Then: `pip install -r requirements.txt`
+- **PySide6 missing**
+  - Activate `.venv`, then run `pip install -r requirements.txt`.
+- **WebSocket disconnected**
+  - The app reconnects automatically; check internet/firewall and Binance WS availability.
+- **PowerShell execution policy**
+  - Use: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
