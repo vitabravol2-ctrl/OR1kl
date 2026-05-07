@@ -1,6 +1,9 @@
 import asyncio
 import logging
+import os
+import sys
 import threading
+import traceback
 from dataclasses import asdict
 from queue import Empty, Full, Queue
 from time import perf_counter, process_time
@@ -151,16 +154,28 @@ class AppOrchestrator:
 
 def main() -> None:
     setup_logging()
+    logger.info("[STARTUP] Python version: %s", sys.version.replace("\n", " "))
+    logger.info("[STARTUP] Working directory: %s", os.getcwd())
     ui_queue: Queue = Queue(maxsize=256)
 
-    app = QApplication([])
-    window = MainWindow()
-    window.show()
+    try:
+        app = QApplication([])
+        window = MainWindow()
+        window.show()
+        logger.info("[STARTUP] GUI init OK")
+    except Exception:
+        logger.exception("[STARTUP] GUI initialization failed")
+        raise
 
     orchestrator = AppOrchestrator(ui_queue)
+    logger.info("[STARTUP] Requirements OK")
 
     def runner() -> None:
-        asyncio.run(orchestrator.run())
+        try:
+            logger.info("[STARTUP] WS thread starting")
+            asyncio.run(orchestrator.run())
+        except Exception:
+            logger.error("[STARTUP] WS thread crashed:\n%s", traceback.format_exc())
 
     thread = threading.Thread(target=runner, daemon=True)
     thread.start()
@@ -180,8 +195,14 @@ def main() -> None:
 
     timer.timeout.connect(pump_queue)
     timer.start()
-    app.exec()
-    orchestrator.shutdown()
+    logger.info("[STARTUP] App ready")
+    try:
+        app.exec()
+    finally:
+        try:
+            orchestrator.shutdown()
+        except Exception:
+            logger.error("Shutdown failed:\n%s", traceback.format_exc())
 
 
 if __name__ == "__main__":
