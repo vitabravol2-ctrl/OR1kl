@@ -1,4 +1,14 @@
 from dataclasses import dataclass
+from enum import Enum
+
+
+class WSHealthState(str, Enum):
+    CONNECTING = "CONNECTING"
+    CONNECTED = "CONNECTED"
+    DEGRADED = "DEGRADED"
+    STALE = "STALE"
+    RECONNECTING = "RECONNECTING"
+    DISCONNECTED = "DISCONNECTED"
 
 
 @dataclass(slots=True)
@@ -18,6 +28,16 @@ class MarketState:
     volatility: float
     aggression: float
     spread: float
+
+
+@dataclass(slots=True)
+class WsDiagnostics:
+    state: WSHealthState = WSHealthState.DISCONNECTED
+    latency_ms: float = 0.0
+    tick_rate: float = 0.0
+    reconnect_count: int = 0
+    stale_count: int = 0
+    last_message_ts: float = 0.0
 
 
 @dataclass(slots=True)

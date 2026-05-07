@@ -9,6 +9,8 @@ class AppConfig:
     simulation_threshold: float = 0.6
     reconnect_base_delay_sec: float = 1.0
     reconnect_max_delay_sec: float = 30.0
+    ws_stale_timeout_sec: float = 4.0
+    snapshot_every_n_ticks: int = 500
 
     @property
     def streams_query(self) -> str:
