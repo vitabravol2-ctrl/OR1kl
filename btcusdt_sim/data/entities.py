@@ -11,6 +11,17 @@ class WSHealthState(str, Enum):
     DISCONNECTED = "DISCONNECTED"
 
 
+class MarketRegime(str, Enum):
+    CALM = "CALM"
+    TRENDING_UP = "TRENDING_UP"
+    TRENDING_DOWN = "TRENDING_DOWN"
+    HIGH_VOLATILITY = "HIGH_VOLATILITY"
+    COMPRESSION = "COMPRESSION"
+    EXPANSION = "EXPANSION"
+    LIQUIDITY_SWEEP = "LIQUIDITY_SWEEP"
+    CHAOTIC = "CHAOTIC"
+
+
 @dataclass(slots=True)
 class Tick:
     timestamp: int
@@ -28,6 +39,31 @@ class MarketState:
     volatility: float
     aggression: float
     spread: float
+    tick_velocity: float = 0.0
+
+
+@dataclass(slots=True)
+class MicroEvent:
+    name: str
+    timestamp: int
+    severity: float
+
+
+@dataclass(slots=True)
+class ReplayFrame:
+    timestamp: int
+    price: float
+    market_state: dict
+    probabilities: dict
+    regime: str
+
+
+@dataclass(slots=True)
+class ProbabilitySnapshot:
+    p_up: float
+    p_down: float
+    confidence: float
+    directional_bias: str
 
 
 @dataclass(slots=True)

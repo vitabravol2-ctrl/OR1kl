@@ -1,61 +1,48 @@
-# BTCUSDT Game Theory Simulation Engine v0.1.0
+# BTCUSDT Research Market Intelligence Terminal v0.1.2
 
-Research-first, self-learning simulation platform for BTCUSDT microstructure.
+Professional realtime cockpit for BTCUSDT microstructure research (NOT a trading bot).
 
-## Project Goal
+## Focus
+- Realtime market state understanding
+- Market regime classification
+- Micro-event detection
+- Replay pipeline foundation
+- Self-learning-ready architecture
 
-This project is **not**:
-- a trading bot
-- a Binance order executor
-- a high-frequency strategy runner
+## Architecture
+- `btcusdt_sim/core/market_state_engine.py`: computes spread, micro trend, volatility, aggression, tick velocity
+- `btcusdt_sim/core/market_regime_engine.py`: classifies CALM / TRENDING_UP / TRENDING_DOWN / HIGH_VOLATILITY / COMPRESSION / EXPANSION / LIQUIDITY_SWEEP / CHAOTIC
+- `btcusdt_sim/core/micro_event_detector.py`: detects spread explosion, aggression spike, imbalance shift, volatility burst, liquidity sweep candidate, momentum ignition, dead market
+- `btcusdt_sim/core/probability_engine.py`: weighted scoring, normalization, confidence, directional bias
+- `btcusdt_sim/infra/replay.py`: async-only replay storage (`jsonl.gz`) + replay reader skeleton
+- `btcusdt_sim/gui/main_window.py`: cockpit panels for regime/events/bias/confidence/health/replay
 
-This project is:
-- market microstructure research
-- probabilistic +1 tick movement analysis
-- virtual simulation of decisions
-- groundwork for self-learning pattern memory
+## Replay foundation
+- Snapshot format: compressed `jsonl.gz`
+- Type: `ReplayFrame`
+- Writer: bounded queue + background thread
+- Reader: skeleton iterator for future replay engine
 
-## Tech Stack
+## Cockpit GUI panels
+- MARKET REGIME PANEL
+- EVENT ALERT PANEL
+- DIRECTIONAL BIAS PANEL
+- CONFIDENCE SCALE
+- SYSTEM HEALTH PANEL
+- REPLAY STATUS PANEL
 
-- Python 3.12
-- PySide6
-- asyncio
-- websockets
-- orjson
-- numpy
+## Launch (Windows 10)
+- Double click `run.bat`
+- Or run `run.ps1` in PowerShell
 
-## Implemented in v0.1.0
+## Update + launch (Windows 10)
+- Double click `update_from_git.bat`
+- Or run `update_from_git.ps1`
 
-- Binance WebSocket connection (`bookTicker`, `aggTrade`)
-- Real-time tick stream
-- Rolling market buffer (5000 ticks)
-- Market state engine
-- Probability engine skeleton (mock probabilities)
-- Simulation engine skeleton (virtual long/short decisions)
-- Pattern memory skeleton
-- Real-time dark GUI
-- Safe reconnect with backoff + logging
-
-## Run
-
+## Linux/macOS
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
-
-## Architecture
-
-- `btcusdt_sim/data`: entities and buffer
-- `btcusdt_sim/core`: state, probability, simulation, learning
-- `btcusdt_sim/infra`: Binance websocket client
-- `btcusdt_sim/gui`: PySide6 dashboard
-- `btcusdt_sim/utils`: config and logging
-
-## Next Roadmap
-
-- v0.2 richer market analysis
-- v0.3 game theory/pain zones engine
-- v0.4 full simulation lifecycle
-- v0.5 self-learning ranking and scoring

@@ -29,10 +29,13 @@ class MarketStateEngine:
         if volumes.size > 0:
             aggression = float(np.tanh(np.mean(volumes) / (np.std(volumes) + 1e-9)))
 
+        tick_velocity = float(buffer.metrics().get("ticks_per_sec", 0.0))
+
         return MarketState(
             imbalance=imbalance,
             micro_trend=micro_trend,
             volatility=volatility,
             aggression=aggression,
             spread=spread,
+            tick_velocity=tick_velocity,
         )

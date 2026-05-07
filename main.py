@@ -2,19 +2,22 @@ import asyncio
 import logging
 import threading
 from queue import Empty, Full, Queue
+from time import perf_counter
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from btcusdt_sim.core.market_regime_engine import MarketRegimeEngine
 from btcusdt_sim.core.market_state_engine import MarketStateEngine
+from btcusdt_sim.core.micro_event_detector import MicroEventDetector
 from btcusdt_sim.core.pattern_memory import PatternMemory
 from btcusdt_sim.core.probability_engine import ProbabilityEngine
 from btcusdt_sim.core.simulation_engine import SimulationEngine
-from btcusdt_sim.data.entities import WSHealthState, WsDiagnostics
+from btcusdt_sim.data.entities import ReplayFrame, WSHealthState, WsDiagnostics
 from btcusdt_sim.data.market_buffer import MarketBuffer
 from btcusdt_sim.gui.main_window import MainWindow
 from btcusdt_sim.infra.binance_ws_client import BinanceWsClient
-from btcusdt_sim.infra.tick_snapshot_writer import TickSnapshotWriter
+from btcusdt_sim.infra.replay import ReplayStorage
 from btcusdt_sim.utils.config import CONFIG
 from btcusdt_sim.utils.logging_setup import setup_logging
 
@@ -26,13 +29,15 @@ class AppOrchestrator:
         self.ui_queue = ui_queue
         self.buffer = MarketBuffer(maxlen=CONFIG.buffer_size)
         self.state_engine = MarketStateEngine()
+        self.regime_engine = MarketRegimeEngine()
+        self.event_detector = MicroEventDetector()
         self.prob_engine = ProbabilityEngine()
         self.sim_engine = SimulationEngine(threshold=CONFIG.simulation_threshold)
         self.pattern_memory = PatternMemory()
         self.ws_client = BinanceWsClient(CONFIG)
         self.ws_diag = WsDiagnostics(state=WSHealthState.CONNECTING)
-        self.snapshot_writer = TickSnapshotWriter()
-        self._save_counter = 0
+        self.replay = ReplayStorage()
+        self._dropped_ui = 0
 
     async def run(self) -> None:
         await self.ws_client.run(self.on_tick, self.on_diag)
@@ -41,41 +46,55 @@ class AppOrchestrator:
         self.ws_diag = WsDiagnostics(**diag.__dict__)
 
     async def on_tick(self, tick) -> None:
+        started = perf_counter()
         self.buffer.append(tick)
         state = self.state_engine.calculate(self.buffer)
-        p_up = self.prob_engine.calculate_up_probability(state)
-        p_down = self.prob_engine.calculate_down_probability(state)
-        sim_status, _ = self.sim_engine.evaluate(tick.mid_price, p_up, p_down)
+        regime = self.regime_engine.classify(state)
+        events = self.event_detector.detect(state, tick.timestamp)
+        probs = self.prob_engine.calculate(state)
+        sim_status, _ = self.sim_engine.evaluate(tick.mid_price, probs.p_up, probs.p_down)
         m = self.buffer.metrics()
 
-        self._save_counter += 1
-        if self._save_counter >= CONFIG.snapshot_every_n_ticks:
-            self._save_counter = 0
-            self.snapshot_writer.submit(self.buffer.tail(200))
+        self.replay.submit(
+            ReplayFrame(
+                timestamp=tick.timestamp,
+                price=tick.mid_price,
+                market_state=state.__dict__,
+                probabilities={"p_up": probs.p_up, "p_down": probs.p_down, "confidence": probs.confidence},
+                regime=regime.value,
+            )
+        )
+        replay_status = self.replay.status()
 
         payload = {
             "price": tick.mid_price,
             "spread": m["avg_spread"],
-            "imbalance": state.imbalance,
             "micro_trend": state.micro_trend,
             "volatility": m["short_volatility"],
-            "aggression": m["tick_pressure"],
-            "p_up": p_up,
-            "p_down": p_down,
+            "aggression": state.aggression,
+            "p_up": probs.p_up,
+            "p_down": probs.p_down,
+            "confidence": probs.confidence,
+            "bias": probs.directional_bias,
+            "regime": regime.value,
+            "events": [f"{e.timestamp} | {e.name} | sev={e.severity:.2f}" for e in events][-4:],
             "sim_status": sim_status,
             "ws_state": self.ws_diag.state.value,
             "ticks_per_sec": m["ticks_per_sec"],
             "latency_ms": self.ws_diag.latency_ms,
             "buffer_fill": self.buffer.fill_ratio(),
-            "mem_mb": 0.0,
-            "cpu_pct": 0.0,
-            "diag": f"reconnects={self.ws_diag.reconnect_count} stale={self.ws_diag.stale_count} dropped={self.buffer.dropped_ticks()}",
-            "log": f"[WS:{self.ws_diag.state.value}] t={tick.timestamp} p_up={p_up:.3f} p_down={p_down:.3f}",
+            "health": f"queue={self.ui_queue.qsize()} dropped={self._dropped_ui} replay_q={replay_status['queued']} replay_w={replay_status['written']}",
+            "replay_status": f"queued={replay_status['queued']} written={replay_status['written']}",
+            "diag": f"reconnects={self.ws_diag.reconnect_count} stale={self.ws_diag.stale_count} dropped_frames={self.buffer.dropped_ticks()}",
+            "log": f"[STATE] regime={regime.value} [EVENT] {events[-1].name if events else 'none'} [SIM] {sim_status} dt={(perf_counter()-started)*1000:.2f}ms",
         }
         try:
             self.ui_queue.put_nowait(payload)
         except Full:
-            pass
+            self._dropped_ui += 1
+
+    def shutdown(self) -> None:
+        self.replay.stop()
 
 
 def main() -> None:
@@ -110,6 +129,7 @@ def main() -> None:
     timer.timeout.connect(pump_queue)
     timer.start()
     app.exec()
+    orchestrator.shutdown()
 
 
 if __name__ == "__main__":
