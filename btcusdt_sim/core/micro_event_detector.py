@@ -4,29 +4,44 @@ from btcusdt_sim.data.entities import MarketState, MicroEvent
 
 
 class MicroEventDetector:
-    def __init__(self, max_events: int = 300) -> None:
+    def __init__(self, max_events: int = 300, cooldown_ms: int = 1600) -> None:
         self._events: deque[MicroEvent] = deque(maxlen=max_events)
+        self._last_emit: dict[str, int] = {}
+        self._cooldown_ms = cooldown_ms
 
     def detect(self, state: MarketState, ts: int, flow: dict | None = None, order_book: dict | None = None) -> list[MicroEvent]:
         flow = flow or {}
         ob = order_book or {}
-        out: list[MicroEvent] = []
+        candidates: list[tuple[str, float]] = []
 
         imbalance = abs(ob.get("liquidity_imbalance", 0.0))
         if imbalance > 0.32 and state.volatility < 8:
-            out.append(self._event("absorption", ts, 0.72))
+            candidates.append(("absorption", 0.72))
         if state.micro_trend > 12 and ob.get("pressure_dominance") == "ASK":
-            out.append(self._event("fake breakout candidate", ts, 0.78))
+            candidates.append(("fake breakout candidate", 0.78))
         if state.spread > 10 and imbalance > 0.2:
-            out.append(self._event("liquidity grab candidate", ts, 0.83))
+            candidates.append(("liquidity grab candidate", 0.83))
         if flow.get("momentum_pulse", 0.0) > 3.5 and flow.get("tick_acceleration", 0.0) < -1.0:
-            out.append(self._event("exhaustion", ts, 0.65))
+            candidates.append(("exhaustion", 0.65))
         if abs(ob.get("liquidity_imbalance", 0.0)) < 0.05 and flow.get("flow_acceleration", 0.0) < -1.8:
-            out.append(self._event("pressure collapse", ts, 0.7))
+            candidates.append(("pressure collapse", 0.7))
         if flow.get("momentum_continuity", 0.0) > 0.7 and flow.get("burst_activity", False):
-            out.append(self._event("momentum continuation", ts, 0.74))
+            candidates.append(("momentum continuation", 0.74))
         if state.micro_trend < -10 and ob.get("pressure_dominance") == "BID":
-            out.append(self._event("trapped side candidate", ts, 0.7))
+            candidates.append(("trapped side candidate", 0.7))
+
+        grouped: dict[str, float] = {}
+        for name, sev in candidates:
+            grouped[name] = max(grouped.get(name, 0.0), sev)
+
+        out: list[MicroEvent] = []
+        for name, sev in grouped.items():
+            last = self._last_emit.get(name, 0)
+            if ts - last < self._cooldown_ms:
+                continue
+            ev = self._event(name, ts, sev)
+            out.append(ev)
+            self._last_emit[name] = ts
 
         return out
 

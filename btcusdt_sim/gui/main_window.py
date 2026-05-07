@@ -37,38 +37,39 @@ class SparklineWidget(QFrame):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Realtime Intelligence Cockpit v0.1.4")
+        self.setWindowTitle("BTCUSDT Tactical Radar Cockpit v0.1.5")
         self.setMinimumSize(1680, 980)
-        self._log_lines: deque[str] = deque(maxlen=300)
+        self._log_lines: deque[str] = deque(maxlen=260)
         root = QWidget(); grid = QGridLayout(root)
 
         self.price = self._mk_label("0.00"); self.price.setObjectName("priceLabel")
         self.ws_status = self._mk_label("WS: DISCONNECTED")
-        self.tps = self._mk_label("Ticks/s: 0.0")
-        self.tick_accel = self._mk_label("Tick accel: 0.00")
-        self.depth_bias = self._mk_label("Depth pressure: NEUTRAL")
-        self.bid_liq = self._mk_label("Bid liquidity: 0")
-        self.ask_liq = self._mk_label("Ask liquidity: 0")
-        self.liq_imb = self._mk_label("Liquidity imbalance: 0.000")
-        self.memory = self._mk_label("Memory zones: 0")
+        self.tactical_state = self._mk_label("TACTICAL STATE: NEUTRAL_FLOW")
+        self.priority = self._mk_label("PRIORITY: LOW")
+        self.dominant_side = self._mk_label("Dominant side: NEUTRAL")
+        self.pressure_dir = self._mk_label("Pressure direction: FLAT")
+        self.stress = self._mk_label("Liquidity stress: 0.00")
+        self.momentum_state = self._mk_label("Momentum state: STABLE")
 
-        self.buy_pressure = QProgressBar(); self.buy_pressure.setRange(0, 100)
-        self.sell_pressure = QProgressBar(); self.sell_pressure.setRange(0, 100)
-        self.pressure_graph = SparklineWidget("#8ecae6")
-        self.pulse_graph = SparklineWidget("#ef476f")
-        self.flow_graph = SparklineWidget("#ffd166")
+        self.danger_bar = QProgressBar(); self.danger_bar.setRange(0, 100)
+        self.opp_bar = QProgressBar(); self.opp_bar.setRange(0, 100)
+        self.stress_bar = QProgressBar(); self.stress_bar.setRange(0, 100)
+
         self.depth_graph = SparklineWidget("#29f1a4")
+        self.flow_graph = SparklineWidget("#ffd166")
+        self.memory_graph = SparklineWidget("#8ecae6")
+        self.danger_graph = SparklineWidget("#ef476f")
 
         self.events = QTextEdit(); self.events.setReadOnly(True)
         self.log_window = QTextEdit(); self.log_window.setReadOnly(True)
 
         panels = [
-            self._panel("LIVE BTC PRICE", [self.price, self.ws_status, self.tps, self.tick_accel]),
-            self._panel("DEPTH MAP", [self.depth_bias, self.bid_liq, self.ask_liq, self.liq_imb, self.depth_graph]),
-            self._panel("LIQUIDITY PRESSURE", [self._mk_label("Bid pressure"), self.buy_pressure, self._mk_label("Ask pressure"), self.sell_pressure, self.pressure_graph]),
-            self._panel("TIMEFLOW", [self._mk_label("Liquidity pulse"), self.pulse_graph, self._mk_label("Flow acceleration"), self.flow_graph]),
-            self._panel("MARKET MEMORY", [self.memory]),
-            self._panel("ACTIVE SIGNALS", [self.events]),
+            self._panel("TACTICAL STATE", [self.price, self.ws_status, self.tactical_state, self.priority, self.dominant_side]),
+            self._panel("TACTICAL RADAR", [self.pressure_dir, self.stress, self.momentum_state, self._mk_label("Danger"), self.danger_bar, self._mk_label("Opportunity"), self.opp_bar, self.danger_graph]),
+            self._panel("MARKET STRESS", [self._mk_label("Stress severity"), self.stress_bar, self._mk_label("Depth / pressure"), self.depth_graph]),
+            self._panel("FLOW RHYTHM", [self._mk_label("Flow acceleration"), self.flow_graph]),
+            self._panel("MEMORY HEAT", [self._mk_label("Persistent tactical memory"), self.memory_graph]),
+            self._panel("SIGNAL PRIORITY", [self.events]),
             self._panel("LOG STREAM", [self.log_window]),
         ]
         grid.addWidget(panels[0], 0, 0); grid.addWidget(panels[1], 0, 1); grid.addWidget(panels[2], 0, 2)
@@ -79,31 +80,43 @@ class MainWindow(QMainWindow):
         self._apply_theme(QApplication.instance())
 
     def update_dashboard(self, data: dict) -> None:
-        flow = data.get("flow", {}); depth = data.get("depth", {}); memory = data.get("memory", {})
+        tactical = data.get("tactical", {})
+        depth = data.get("depth", {})
+        flow = data.get("flow", {})
+        memory = data.get("memory", {})
+
         self.price.setText(f"{data['price']:.2f}")
         self.ws_status.setText(f"WS: {data['ws_state']}")
-        self.tps.setText(f"Ticks/s: {data['ticks_per_sec']:.1f}")
-        self.tick_accel.setText(f"Tick accel: {flow.get('tick_acceleration', 0.0):.2f}")
+        self.tactical_state.setText(f"TACTICAL STATE: {tactical.get('state', 'NEUTRAL_FLOW')}")
+        self.priority.setText(f"PRIORITY: {tactical.get('priority', 'LOW')}")
+        self._set_priority_style(tactical.get("priority", "LOW"))
 
-        self.depth_bias.setText(f"Depth pressure: {depth.get('pressure_dominance', 'NEUTRAL')}")
-        self.bid_liq.setText(f"Bid liquidity: {depth.get('bid_liquidity', 0.0):.2f}")
-        self.ask_liq.setText(f"Ask liquidity: {depth.get('ask_liquidity', 0.0):.2f}")
-        self.liq_imb.setText(f"Liquidity imbalance: {depth.get('liquidity_imbalance', 0.0):.3f}")
+        self.dominant_side.setText(f"Dominant side: {tactical.get('dominant_side', 'NEUTRAL')}")
+        self.pressure_dir.setText(f"Pressure direction: {tactical.get('pressure_direction', 'FLAT')}")
+        self.stress.setText(f"Liquidity stress: {tactical.get('liquidity_stress', 0.0):.2f}")
+        self.momentum_state.setText(f"Momentum state: {tactical.get('momentum_state', 'STABLE')}")
 
-        buy = int((depth.get("liquidity_imbalance", 0.0) + 1) * 50); buy = max(0, min(100, buy))
-        self.buy_pressure.setValue(buy); self.sell_pressure.setValue(100 - buy)
+        self.danger_bar.setValue(int(tactical.get("tactical_danger", 0.0) * 100))
+        self.opp_bar.setValue(int(tactical.get("tactical_opportunity", 0.0) * 100))
+        self.stress_bar.setValue(int(tactical.get("liquidity_stress", 0.0) * 100))
 
-        self.depth_graph.set_values(depth.get("depth_heat_series", []))
-        self.pressure_graph.set_values(depth.get("pressure_series", []))
-        self.pulse_graph.set_values(flow.get("pulse_series", []))
+        self.depth_graph.set_values(depth.get("pressure_series", []))
         self.flow_graph.set_values(flow.get("accel_series", []))
+        self.memory_graph.set_values(memory.get("pressure_history", []))
+        self.danger_graph.set_values(tactical.get("danger_series", []))
 
-        self.memory.setText(f"Memory zones: {len(memory.get('recent_liquidity_zones', []))} | sweeps: {len(memory.get('recent_sweeps', []))}")
         self.events.setText("\n".join(self._fmt_event(e) for e in data.get("events", [])))
-        self._append_log(data["log"])
+        self._append_log(data.get("log", ""))
+
+    def _set_priority_style(self, priority: str) -> None:
+        color = "#6ee7ff"
+        if priority == "MID": color = "#ffd166"
+        if priority == "HIGH": color = "#ff9f1c"
+        if priority == "CRITICAL": color = "#ff4d4d"
+        self.priority.setStyleSheet(f"font-weight: 700; color: {color};")
 
     def _fmt_event(self, ev: dict) -> str:
-        return f"[{ev.get('severity_level', 'LOW')}/{ev.get('lifespan', 'active')}] {ev.get('timestamp')} | {ev.get('name')} | sev={ev.get('severity', 0.0):.2f}"
+        return f"[{ev.get('severity_level', 'LOW')}] {ev.get('name')}"
 
     def _mk_label(self, text: str) -> QLabel:
         w = QLabel(text); w.setAlignment(Qt.AlignLeft); return w
@@ -114,6 +127,8 @@ class MainWindow(QMainWindow):
         return box
 
     def _append_log(self, message: str) -> None:
+        if self._log_lines and self._log_lines[0] == message:
+            return
         self._log_lines.appendleft(message)
         self.log_window.setText("\n".join(self._log_lines))
 
@@ -122,7 +137,7 @@ class MainWindow(QMainWindow):
         app.setStyleSheet("""
             QWidget { background-color: #060d16; color: #c8f7da; font-size: 12px; }
             QGroupBox { border: 1px solid #1f6f57; margin-top: 8px; font-weight: bold; }
-            QLabel#priceLabel { font-size: 36px; font-weight: 800; }
+            QLabel#priceLabel { font-size: 34px; font-weight: 800; }
             QTextEdit { background-color: #0a1522; color: #ffe084; border: 1px solid #2b4561; }
             QProgressBar { border: 1px solid #1e5d4b; text-align: center; }
             QProgressBar::chunk { background-color: #2fd08d; }
