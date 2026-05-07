@@ -30,6 +30,8 @@ class Tick:
     spread: float
     mid_price: float
     volume: float
+    bids: list[tuple[float, float]] | None = None
+    asks: list[tuple[float, float]] | None = None
 
 
 @dataclass(slots=True)
@@ -47,6 +49,8 @@ class MicroEvent:
     name: str
     timestamp: int
     severity: float
+    severity_level: str = "LOW"
+    lifespan: str = "active"
 
 
 @dataclass(slots=True)

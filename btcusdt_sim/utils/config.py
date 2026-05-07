@@ -14,7 +14,7 @@ class AppConfig:
 
     @property
     def streams_query(self) -> str:
-        return f"{self.symbol}@bookTicker/{self.symbol}@aggTrade"
+        return f"{self.symbol}@bookTicker/{self.symbol}@aggTrade/{self.symbol}@depth10@100ms"
 
 
 CONFIG = AppConfig()
