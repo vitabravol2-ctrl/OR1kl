@@ -26,6 +26,7 @@ from btcusdt_sim.core.probability_engine import ProbabilityEngine
 from btcusdt_sim.core.simulation_engine import SimulationEngine
 from btcusdt_sim.core.game_theory_engine import GameTheoryCore
 from btcusdt_sim.core.market_summary_engine import MarketSummaryEngine
+from btcusdt_sim.core.micro_tick_setup_engine import MicroTickSetupEngine
 from btcusdt_sim.core.tick_flow_engine import TickFlowEngine
 from btcusdt_sim.data.entities import ReplayFrame, WSHealthState, WsDiagnostics
 from btcusdt_sim.data.market_buffer import MarketBuffer
@@ -58,6 +59,9 @@ class AppOrchestrator:
         self.reaction_engine = ReactionEngine()
         self.game_theory_core = GameTheoryCore()
         self.market_summary_engine = MarketSummaryEngine()
+        self.micro_tick_setup_engine = MicroTickSetupEngine()
+        self.virtual_stats = {"wins": 0, "losses": 0, "timeouts": 0, "duration_total_ms": 0, "total": 0}
+        self.virtual_position = "FLAT"
         self._last_log = ""
         self._last_game_scenario = ""
         self._cpu_time_last = process_time()
@@ -93,6 +97,8 @@ class AppOrchestrator:
         tactical = self.tactical_engine.evaluate({"flow": flow, "depth": depth, "memory": memory, "market_state": asdict(state), "regime": regime.value, "events": [{"severity_level": e.severity_level} for e in events], "warfare": warfare, "absorption": absorption, "reaction": reaction})
         game = self.game_theory_core.evaluate(tick.mid_price, tactical, flow, depth, reaction)
         market_summary = self.market_summary_engine.summarize(tactical, game)
+        micro_setup = self.micro_tick_setup_engine.evaluate(tick.mid_price, tactical, game)
+        sim_outcome = self._simulate_micro_tick_outcome(micro_setup.direction, reaction)
 
         self.replay.submit(
             ReplayFrame(
@@ -142,6 +148,10 @@ class AppOrchestrator:
             "tactical": tactical,
             "game": game,
             "market_summary": market_summary,
+            "micro_tick_setup": asdict(micro_setup),
+            "micro_tick_pipeline": ["DATA", "MICROSTRUCTURE", "GAME THEORY", "INTENT", "SETUP", "SIMULATION", "RESULT", "LEARNING"],
+            "simulation_result": self._build_simulation_result(sim_outcome),
+            "future_trading_gate": {"live_trading": "DISABLED", "orders": "DISABLED", "mode": "RESEARCH ONLY"},
             "cpu_usage": cpu_usage,
             "log": self._build_log(regime.value, events[-1].name if events else "none", sim_status, perf_counter()-started, game),
         }
@@ -149,6 +159,40 @@ class AppOrchestrator:
             self.ui_queue.put_nowait(payload)
         except Full:
             self._dropped_ui += 1
+
+    def _simulate_micro_tick_outcome(self, direction: str, reaction: dict) -> str:
+        if direction == "WAIT":
+            return "TIMEOUT"
+        continuation = reaction.get("continuation_probability", 0.0)
+        rejection = reaction.get("rejection_strength", 0.0)
+        if continuation >= 0.58:
+            return "WIN"
+        if rejection >= 0.58:
+            return "LOSS"
+        return "TIMEOUT"
+
+    def _build_simulation_result(self, outcome: str) -> dict:
+        self.virtual_stats["total"] += 1
+        self.virtual_stats["duration_total_ms"] += 1200
+        if outcome == "WIN":
+            self.virtual_stats["wins"] += 1
+            self.virtual_position = "IN_VIRTUAL_LONG_SHORT"
+        elif outcome == "LOSS":
+            self.virtual_stats["losses"] += 1
+            self.virtual_position = "STOPPED_VIRTUAL"
+        else:
+            self.virtual_stats["timeouts"] += 1
+            self.virtual_position = "FLAT"
+        total = max(self.virtual_stats["total"], 1)
+        return {
+            "virtual_wins": self.virtual_stats["wins"],
+            "losses": self.virtual_stats["losses"],
+            "timeouts": self.virtual_stats["timeouts"],
+            "winrate": self.virtual_stats["wins"] / total,
+            "avg_duration_ms": self.virtual_stats["duration_total_ms"] / total,
+            "current_virtual_position": self.virtual_position,
+            "last_outcome": outcome,
+        }
 
     def _build_log(self, regime: str, event_name: str, sim_status: str, dt: float, game: dict) -> str:
         line = f"[TACTICAL] {regime} | event={event_name} | sim={sim_status} | dt={dt*1000:.2f}ms"
