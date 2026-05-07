@@ -1,39 +1,55 @@
-# BTCUSDT Research Market Intelligence Terminal v0.2.2
+# BTCUSDT Research Market Intelligence Terminal v0.2.3
 
-Professional realtime BTCUSDT tactical intelligence cockpit for microstructure research (NOT a trading bot).
+Professional realtime BTCUSDT tactical intelligence cockpit for microstructure research (**NOT** a live trading bot).
 
-## v0.2.2 Simplified GUI + Command Center Layout
-- Introduced a **3-tab cockpit layout**:
-  1. **COMMAND CENTER**
-  2. **GAME THEORY**
-  3. **DIAGNOSTICS**
-- Main screen is now a decision-focused **Command Center** with larger typography and reduced panel noise.
-- Added a central **MARKET DECISION CARD** showing:
-  - Tactical state
-  - Market intent
-  - Best scenario
-  - Pressure direction
-  - Trap side
-  - Confidence
-  - Danger / Opportunity
-- Added **MarketSummaryEngine** with one-line tactical narrative:
-  - Example: "Market neutral flow, fake breakout intent, shorts vulnerable, compression wait scenario active, pressure up."
-- Priority feed on Command Center now shows only **CRITICAL/HIGH** events.
-- Engineering-heavy details (diagnostics/log stream) moved away from main decision screen.
+## v0.2.3 Command Center Rebalance + Micro-Tick Lab
 
-## v0.2.1 Adaptive Game Theory + Market Intent
-- Added **MarketIntentEngine** with intent classification.
-- Added **ScenarioEvolutionEngine**, **IntentRealityEngine**, **TrapAnalyzer**, **PayoffEvolutionEngine**.
-- Added tactical stability controls:
-  - intent persistence
-  - confidence smoothing
-  - tactical instability score
+### 3-tab cockpit
+1. **COMMAND CENTER**
+2. **MICRO-TICK LAB**
+3. **DIAGNOSTICS**
+
+### Command Center layout (balanced, not overloaded)
+- **Left panel:** BTC price, WS status, ticks/sec, latency, current regime, tactical state, priority feed.
+- **Center panel (Market Decision Card):** market summary, intent, best scenario, trapped side, pressure direction, confidence, danger, opportunity, payoff score.
+- **Right panel (Live Microstructure):** spread, bid/ask pressure, liquidity imbalance, absorption, reaction state, continuation strength, fake pressure warning, sweep risk.
+
+### Micro-Tick Lab (UI + data wiring, research mode)
+- **+1 Tick Setup:** virtual direction, entry candidate, +1 tick target, invalidation, timeout.
+- **Signal Quality:** A/B/C/WAIT, reason, confidence, EV estimate.
+- **Micro-Tick Chain:**
+  - `DATA → MICROSTRUCTURE → GAME THEORY → INTENT → SETUP → SIMULATION → RESULT → LEARNING`
+- **Simulation Result:** virtual wins, losses, timeouts, winrate, avg duration, current virtual position.
+- **Future Trading Gate placeholder:**
+  - `LIVE TRADING: DISABLED`
+  - `ORDERS: DISABLED`
+  - `MODE: RESEARCH ONLY`
+
+### Algorithm pipeline (architectural readiness)
+1. Tick ingestion
+2. Market buffer
+3. Market state
+4. Tick flow
+5. Depth/liquidity
+6. Timeflow
+7. Warfare/absorption/reaction
+8. Tactical signal
+9. Game theory scenario
+10. Market intent
+11. Micro-tick setup scoring
+12. Virtual simulation
+13. Result validation
+14. Pattern memory update
+
+### Safety rule
+- Research-only pipeline.
+- No real orders.
+- No live trading execution.
 
 ## Core Architecture
-- `btcusdt_sim/core/game_theory_engine.py`: adaptive game theory, intent, trap and payoff flow logic
-- `btcusdt_sim/core/market_summary_engine.py`: concise market summary string for decision UI
-- `btcusdt_sim/gui/main_window.py`: tabbed cockpit UI and command-center-focused layout
-- `main.py`: orchestration and pipeline integration
+- `main.py`: full orchestration pipeline + virtual micro-tick simulation result wiring.
+- `btcusdt_sim/core/micro_tick_setup_engine.py`: `MicroTickSetupEngine` skeleton and setup output model.
+- `btcusdt_sim/gui/main_window.py`: rebalanced Command Center + new Micro-Tick Lab + diagnostics separation.
 
 ## Linux/macOS
 ```bash
