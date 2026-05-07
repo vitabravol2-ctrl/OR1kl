@@ -1,6 +1,35 @@
-# BTCUSDT Research Market Intelligence Terminal v0.1.6
+# BTCUSDT Research Market Intelligence Terminal v0.2.0
 
 Professional realtime BTCUSDT tactical intelligence cockpit for microstructure research (NOT a trading bot).
+
+## v0.2.0 Game Theory Core
+- Added **GameTheoryCore**:
+  - player model synthesis for crowd + market maker behavior
+  - payoff-matrix scoring across directional/fake/sweep/range scenarios
+  - Nash-like decision selection (`best_scenario`, confidence, expected payoff)
+- Added **PlayerModelEngine**:
+  - tracks pressure, vulnerability, likely action, risk, payoff expectation for:
+    - `LONG_CROWD`
+    - `SHORT_CROWD`
+    - `MARKET_MAKER`
+    - `MOMENTUM_TRADERS`
+    - `LIQUIDITY_PROVIDERS`
+    - `OUR_SIMULATOR`
+- Added **CrowdPainEngine**:
+  - pain map above/below current price
+  - trapped-side proxy and liquidation-pressure proxy
+  - `PainScore = stop_density * liquidity_reward / distance_penalty` style logic
+- Added **PayoffMatrixEngine**:
+  - scenarios:
+    - `MOVE_UP`, `MOVE_DOWN`
+    - `FAKE_UP_THEN_DOWN`, `FAKE_DOWN_THEN_UP`
+    - `COMPRESSION_WAIT`
+    - `SWEEP_HIGH`, `SWEEP_LOW`
+    - `RANGE_TRAP`
+  - metrics: reward, cost, risk, liquidity gain, crowd pain, MM advantage, expected payoff
+- Added **GameDecisionEngine**:
+  - selects best + second scenario
+  - confidence and scenario reason output
 
 ## v0.1.6 Liquidity Warfare + Reaction Intelligence
 - Added **LiquidityWarfareEngine**:
@@ -61,6 +90,13 @@ New/expanded panels:
 - MARKET STRESS
 - FLOW RHYTHM
 - MEMORY HEAT
+- GAME THEORY STATE
+- PLAYER ADVANTAGE
+- CROWD PAIN MAP
+- PAYOFF MATRIX
+- BEST SCENARIO
+- MARKET MAKER INCENTIVE
+- TRAPPED SIDE
 
 ## Performance Constraints
 - Bounded memory via deque histories.
@@ -74,6 +110,7 @@ New/expanded panels:
 - `btcusdt_sim/core/reaction_engine.py`: reaction delay/speed/follow-through modeling
 - `btcusdt_sim/core/tactical_signal_engine.py`: tactical synthesis + persistence/hysteresis
 - `btcusdt_sim/core/micro_event_detector.py`: upgraded event logic + cooldown
+- `btcusdt_sim/core/game_theory_engine.py`: game theory stack (player model, pain, payoff, decision)
 - `btcusdt_sim/gui/main_window.py`: tactical radar cockpit UI v0.1.6
 
 ## Linux/macOS
