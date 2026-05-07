@@ -145,6 +145,8 @@ class MainWindow(QMainWindow):
         return box
 
     def _append_log(self, message: str) -> None:
+        if not message:
+            return
         if self._log_lines and self._log_lines[0] == message:
             return
         self._log_lines.appendleft(message)
