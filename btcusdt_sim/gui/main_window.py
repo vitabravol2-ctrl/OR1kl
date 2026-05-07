@@ -101,7 +101,6 @@ class MainWindow(QMainWindow):
         grid.addWidget(panels[9], 3, 0); grid.addWidget(panels[10], 3, 1); grid.addWidget(panels[11], 3, 2)
         grid.addWidget(panels[12], 4, 0); grid.addWidget(panels[13], 4, 1); grid.addWidget(panels[14], 4, 2)
         grid.addWidget(panels[15], 5, 0, 1, 3)
-        grid.addWidget(panels[16], 6, 0, 1, 3)
 
         self.setCentralWidget(root)
         self._apply_theme(QApplication.instance())
