@@ -59,7 +59,18 @@ class AppOrchestrator:
         self.reaction_engine = ReactionEngine()
         self.game_theory_core = GameTheoryCore()
         self.market_summary_engine = MarketSummaryEngine()
-        self.micro_tick_setup_engine = MicroTickSetupEngine()
+        self.micro_tick_setup_engine = MicroTickSetupEngine(
+            confidence_threshold=CONFIG.micro_min_confidence,
+            tick_size=CONFIG.micro_tick_size,
+            target_ticks_1=CONFIG.micro_target_ticks_1,
+            target_ticks_2=CONFIG.micro_target_ticks_2,
+            risk_ticks=CONFIG.micro_risk_ticks,
+            timeout_ms=CONFIG.micro_timeout_ms,
+            min_ev=CONFIG.micro_min_ev,
+            max_spread_ticks=CONFIG.micro_max_spread_ticks,
+            fee_ticks=CONFIG.micro_fee_ticks,
+            slippage_ticks=CONFIG.micro_slippage_ticks,
+        )
         self.virtual_stats = {"wins": 0, "losses": 0, "timeouts": 0, "duration_total_ms": 0, "total": 0}
         self.virtual_position = "FLAT"
         self._last_log = ""
@@ -97,7 +108,8 @@ class AppOrchestrator:
         tactical = self.tactical_engine.evaluate({"flow": flow, "depth": depth, "memory": memory, "market_state": asdict(state), "regime": regime.value, "events": [{"severity_level": e.severity_level} for e in events], "warfare": warfare, "absorption": absorption, "reaction": reaction})
         game = self.game_theory_core.evaluate(tick.mid_price, tactical, flow, depth, reaction)
         market_summary = self.market_summary_engine.summarize(tactical, game)
-        micro_setup = self.micro_tick_setup_engine.evaluate(tick.mid_price, tactical, game)
+        ws_fresh = self.ws_diag.state.value not in {"STALE", "DISCONNECTED"}
+        micro_setup = self.micro_tick_setup_engine.evaluate(tick.bid, tick.ask, tactical, game, ws_fresh=ws_fresh)
         sim_outcome = self._simulate_micro_tick_outcome(micro_setup.direction, reaction)
 
         self.replay.submit(
@@ -151,7 +163,7 @@ class AppOrchestrator:
             "micro_tick_setup": asdict(micro_setup),
             "micro_tick_pipeline": ["DATA", "MICROSTRUCTURE", "GAME THEORY", "INTENT", "SETUP", "SIMULATION", "RESULT", "LEARNING"],
             "simulation_result": self._build_simulation_result(sim_outcome),
-            "future_trading_gate": {"live_trading": "DISABLED", "orders": "DISABLED", "mode": "RESEARCH ONLY"},
+            "future_trading_gate": {"live_trading": "ENABLED" if CONFIG.live_trading_enabled else "DISABLED", "orders": "ENABLED" if CONFIG.order_execution_enabled else "DISABLED", "mode": "RESEARCH ONLY"},
             "cpu_usage": cpu_usage,
             "log": self._build_log(regime.value, events[-1].name if events else "none", sim_status, perf_counter()-started, game),
         }

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication, QGridLayout, QGroupBox, QLabel, QMai
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BTCUSDT Game Theory Simulation Engine v0.2.3")
+        self.setWindowTitle("BTCUSDT Game Theory Simulation Engine v0.2.4")
         self.setMinimumSize(1540, 920)
         self._log_lines: deque[str] = deque(maxlen=260)
 
@@ -62,11 +62,12 @@ class MainWindow(QMainWindow):
         self.setup_direction = self._mk_label("virtual direction: WAIT")
         self.setup_entry = self._mk_label("entry candidate: 0.00")
         self.setup_target = self._mk_label("target +1 tick: 0.00")
+        self.setup_target_2 = self._mk_label("target +2 tick: 0.00")
         self.setup_invalidation = self._mk_label("invalidation: 0.00")
         self.setup_timeout = self._mk_label("timeout: 0 ms")
 
         self.signal_grade = self._mk_label("quality: WAIT")
-        self.signal_reason = self._mk_label("reason: n/a")
+        self.signal_reason = QTextEdit(); self.signal_reason.setReadOnly(True)
         self.signal_conf = self._mk_label("confidence: 0%")
         self.signal_ev = self._mk_label("EV estimate: 0.00")
         self.chain = self._mk_label("DATA → MICROSTRUCTURE → GAME THEORY → INTENT → SETUP → SIMULATION → RESULT → LEARNING")
@@ -80,8 +81,8 @@ class MainWindow(QMainWindow):
 
         self.gate = self._mk_label("LIVE TRADING: DISABLED\nORDERS: DISABLED\nMODE: RESEARCH ONLY")
 
-        layout.addWidget(self._panel("+1 TICK SETUP", [self.setup_direction, self.setup_entry, self.setup_target, self.setup_invalidation, self.setup_timeout]), 0, 0)
-        layout.addWidget(self._panel("SIGNAL QUALITY", [self.signal_grade, self.signal_reason, self.signal_conf, self.signal_ev]), 0, 1)
+        layout.addWidget(self._panel("+1/+2 TICK SETUP", [self.setup_direction, self.setup_entry, self.setup_target, self.setup_target_2, self.setup_invalidation, self.setup_timeout]), 0, 0)
+        layout.addWidget(self._panel("SIGNAL QUALITY", [self.signal_grade, self._mk_label("reason list:"), self.signal_reason, self.signal_conf, self.signal_ev]), 0, 1)
         layout.addWidget(self._panel("MICRO-TICK CHAIN", [self.chain]), 1, 0, 1, 2)
         layout.addWidget(self._panel("SIMULATION RESULT", [self.sim_wins, self.sim_losses, self.sim_timeouts, self.sim_winrate, self.sim_duration, self.sim_position]), 2, 0)
         layout.addWidget(self._panel("FUTURE TRADING GATE", [self.gate]), 2, 1)
@@ -133,10 +134,12 @@ class MainWindow(QMainWindow):
         self.setup_direction.setText(f"virtual direction: {setup.get('direction', 'WAIT')}")
         self.setup_entry.setText(f"entry candidate: {setup.get('entry_candidate', 0.0):.2f}")
         self.setup_target.setText(f"target +1 tick: {setup.get('target_price', 0.0):.2f}")
+        self.setup_target_2.setText(f"target +2 tick: {setup.get('target_price_2', 0.0):.2f}")
         self.setup_invalidation.setText(f"invalidation: {setup.get('invalidation_price', 0.0):.2f}")
         self.setup_timeout.setText(f"timeout: {setup.get('timeout_ms', 0)} ms")
         self.signal_grade.setText(f"quality: {setup.get('signal_quality', 'WAIT')}")
-        self.signal_reason.setText(f"reason: {setup.get('reason', 'n/a')}")
+        reason_lines = setup.get("reason_list", []) or [setup.get("reason", "n/a")]
+        self.signal_reason.setText("\n".join(f"- {r}" for r in reason_lines))
         self.signal_conf.setText(f"confidence: {int(setup.get('confidence', 0.0)*100)}%")
         self.signal_ev.setText(f"EV estimate: {setup.get('ev_estimate', 0.0):.2f}")
         self.chain.setText(" → ".join(data.get("micro_tick_pipeline", [])))
